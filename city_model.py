@@ -339,6 +339,7 @@ class Simulation():
         # change taxi state to available
         t.with_passenger=False
         t.available=True
+        t.actual_request_executing=None
         
         # update taxi lists
         self.city.A[t.x,t.y].append(r.taxi_id)
@@ -428,19 +429,19 @@ class Simulation():
                         )
                 self.canvas_ax.plot(path[-1][0],path[-1][1],'*',ms=5,c=self.cmap(self.taxi_colors[i]))
 
-    def plot_users(self):
-        for i,user in enumerate(self.all_user):
-            self.canvas_ax.plot(
-                    user.x,
-                    user.y,
-                    'ro',
-                    ms=3)
-            self.canvas_ax.annotate(
-                    str(i),
-                    xy=(user.x,user.y),
-                    xytext=(user.x-0.2,user.y-0.2),
-                    ha='center',
-                    va='center')
+#    def plot_users(self):
+#        for i,user in enumerate(self.all_user):
+#            self.canvas_ax.plot(
+#                    user.x,
+#                    user.y,
+#                    'ro',
+#                    ms=3)
+#            self.canvas_ax.annotate(
+#                    str(i),
+#                    xy=(user.x,user.y),
+#                    xytext=(user.x-0.2,user.y-0.2),
+#                    ha='center',
+#                    va='center')
 
 
     def step_time(self):
@@ -450,71 +451,42 @@ class Simulation():
 #        self.plot_users()
 #        self.canvas.show()
 
-        # make new requests with request rate
-        if len(self.free_users)>0:
-#            print("Free users are "+",".join(list(map(str,self.free_users))))
-            p = choice(self.free_users)
+        test = np.random.rand()
+        if test<self.request_rate:
+            print("A new request has been made with id "+self.latest_request_id+".")
+            self.add_request(self.latest_request_id)
 
-            # assign available taxis to requests
-            x = np.random.randint(0,high=self.city.n)
-            y = np.random.randint(0,high=self.city.m)
-            self.make_request(p,[x,y])
+        tr_list = self.taxis_to_request
+        for taxi_id in tr_list:
+            t = self.taxis[taxi_id]
+            r = self.requests[t.request_id]
 
-        # passenger pickup
-        pickups=[]
-        for t in self.taxis_towards_users:
-            user_pick = self.all_taxi[t].passenger_to_pick_up
-
-            if ((self.all_taxi[t].x==self.all_user[user_pick].x) \
-                and (self.all_taxi[t].y==self.all_user[user_pick].y)):
-                print('I\'ve picked up user '+\
-                      str(user_pick)+\
+            if ((t.x==r.x) and (t.y==r.y)):
+                print('I\'ve picked up request '+\
+                      str(t.request_id)+\
                       ' with taxi '+\
-                      str(t)+'!')
-                pickups.append(t)
-                self.all_taxi[t].actual_passenger=user_pick
-                self.all_taxi[t].passenger_to_pick_up=None
-                self.all_user[user_pick].travelling_with=t
-        for p in pickups:
-            self.taxis_towards_users.remove(p)
-            self.taxis_with_users.append(p)
-
+                      str(taxi_id)+'!')
+            else:
+                print("Taxi "+str(taxi_id)+" still has not reached the user.")
+            self.pickup_request(t.request_id)
+            
         # move every taxi one step towards its destination, or stay in place!
-        for i,t in enumerate(self.all_taxi):
-
-#            print("Taxi ",
-#                  t.taxi_id,
-#                  "actual passenger",
-#                  t.actual_passenger,
-#                  "moving towards",
-#                  t.passenger_to_pick_up)
-            # if the taxi has arrived and there was somebody sitting in it
-            if ((self.all_taxi[i].next_destination.qsize()==0)\
-                and (self.all_taxi[i].actual_passenger!=None)):
+        for i,taxi_id in enumerate(self.taxis.keys()):
+            t = self.taxis[taxi_id]
+            if ((t.next_destination.qsize()==0) and (t.with_passenger):
                 print("Dropping off my passenger! Taxi no "+\
-                      str(self.all_taxi[i].taxi_id)+' passenger '+\
-                      str(self.all_taxi[i].actual_passenger)+'.')
-                self.free_users.append(self.all_taxi[i].actual_passenger)
-                self.all_user[self.all_taxi[i].actual_passenger].travelling_with=None
-                self.all_taxi[i].actual_passenger=None
-                # write taxi again on availability map
-                self.city.A[self.all_taxi[i].x,self.all_taxi[i].y]\
-                .append(self.all_taxi[i].taxi_id)
-                self.taxis_with_users.remove(self.all_taxi[i].taxi_id)
-
+                      str(taxi_id)+' request '+\
+                      str(t.actual_request_executing)+'.')
+                self.dropoff_request(t.actual_request_executing)
             try:
                 # move taxi one step forward
-                move = self.all_taxi[i].next_destination.get_nowait()
-                self.all_taxi[i].x = move[0]
-                self.all_taxi[i].y = move[1]
-                # move user along with taxi
-                if self.all_taxi[i].actual_passenger!=None:
-                    self.all_user[self.all_taxi[i].actual_passenger].x=t.x
-                    self.all_user[self.all_taxi[i].actual_passenger].y=t.y
-
+                move = t.next_destination.get_nowait()
+                t.x = move[0]
+                t.y = move[1]
+                # update taxi instance
+                self.taxis[taxi_id]=t
             except:
                 pass
-
 
         # step time
         self.time+=1
