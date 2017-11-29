@@ -17,6 +17,45 @@ class City():
     """
 
     def __init__(self,**config):
+        """      
+        Parameters
+        ----------
+        
+        n : int
+            width of grid
+        
+        m : int
+            height of grid
+
+        base_coords : [int,int]
+            grid coordinates of the taxi base
+            
+        base_sigma : float
+            standard deviation of the 2D Gauss distribution
+            around the taxi base
+
+        Attributes
+        ----------
+        A : np.array of lists
+            placeholder to store list of available taxi_ids at their actual
+            positions
+
+        n : int
+            width of grid
+        
+        m : int
+            height of grid
+
+        base_coords: [int,int]
+            coordinates of the taxi base
+            
+        base_sigma: float
+            standard deviation of the 2D Gauss distribution
+            around the taxi base
+                    
+        
+        
+        """
         if (("n" in config) and ("m" in config)):
             self.n = config["n"] # number of pixels in x direction
             self.m = config["m"] # number of pixels in y direction
@@ -29,50 +68,82 @@ class City():
                 for j in range(self.m):
                     self.A[i,j]=list()
                     
-            self.base_coords = [np.floor(self.n/2),np.floor(self.m/2)]
+            self.base_coords = [int(np.floor(self.n/2)),int(np.floor(self.m/2))]
+#            print(self.base_coords)
             self.base_sigma = config["base_sigma"]
 
     def measure_distance(self,source,destination):
         """
         Measure distance on the grid between two points.
-        |xs-xd|+|ys-yd|
+        
+        Returns
+        -------
+        Source coordinates are marked by *s*,
+        destination coordinates are marked by *d*.
+        
+        The distance is the following integer:
+        $$|x_s-x_d|+|y_s-y_d|$$
         """
 
         return np.dot(np.abs(np.array(destination)-np.array(source)),[1,1])
 
     def create_path(self,source,destination):
         """
-        Choose a random shortest path between source and dest.
+        Choose a random shortest path between source and destination.
+        
+        Parameters
+        ----------
+        
+        source : [int,int]
+            grid coordinates of the source
+            
+        destination : [int,int]
+            grid coordinates of the destination
+        
+        
+        Returns
+        -------
+        
+        path : list of coordinate tuples
+            coordinate list of a random path between source and destinaton
+            
         """
-
+        
+        # distance along the x and the y axis
         dx, dy = np.array(destination) - np.array(source)
+        # create a sequence of "x"-es and "y"-s
+        # we are going to shuffle this sequence
+        # to get a random order of "x" and "y" direction steps
         sequence = ['x']*int(np.abs(dx))+['y']*int(np.abs(dy))
         shuffle(sequence)
-        path=[source] # appending source
+        # source is included in the path
+        path=[source]
         for item in sequence:
             if item=="x":
+                # we add one step in the "x" direction based on the last position
                 path.append([np.sign(dx)+path[-1][0],0+path[-1][1]])
             else:
+                # we add one step in the "y" direction based on the last position
                 path.append([0+path[-1][0],np.sign(dy)+path[-1][1]])
         return path
 
-    def plot_path(self,source,destination,path):
-        """
-        Plot selected path in a grid.
-        """
-
-        path=np.array(path)
-        path_to_plot = np.cumsum(path,axis=0)+np.array(source)*np.ones(np.shape(path))
-        x,y=path_to_plot.T
-        plt.plot(x,y,'bo-')
-
-
     def neighbors(self,coordinates):
         """
-        Return the neighbors of a coordinate.
+        Calculate the neighbors of a coordinate.
         On the edges of the simulation grid, there are no neighbors.
         (E.g. there are only 2 neighbors in the corners.)
 
+        Parameters
+        ----------
+        
+        coordinates : [int,int]
+            input grid coordinate
+            
+        Returns
+        -------
+        
+        ns : list of coordinate tuples
+            list containing the coordinates of the neighbors        
         """
 
         ns = set()
@@ -88,17 +159,23 @@ class City():
         """
         Creates random request coords based on the base_coords and the
         base_sigma according to a 2D Gauss.
+        
+        Returns
+        -------
+        
+        x,y
+            coordinate tuple
         """
         
         done=False
-        while(done):
+        while(not done):
             mean = self.base_coords
             cov = np.array([[self.base_sigma**2,0],[0,self.base_sigma**2]])
             
             x,y=np.random.multivariate_normal(mean,cov)
             
-            x = np.floor(x)
-            y = np.floor(y)
+            x = int(np.floor(x))
+            y = int(np.floor(y))
             
             if ((x>=0) and (x<self.n) and (y>=0) and (y<self.m)):
                 done=True
@@ -107,7 +184,47 @@ class City():
 class Taxi():
     """
     Represents a taxi in the simulation.
-
+    
+    Attributes
+    ----------
+    
+    x : int
+        horizontal grid coordinate
+    
+    y : int
+        vertical grid coordinate
+    
+    taxi_id : int
+        unique identifier of taxi
+        
+    available : bool
+        flag that stores whether taxi is free
+        
+    to_request : bool
+        flag that stores when taxi is moving towards a request
+        but there is still no user sitting in it
+    
+    with_passenger : bool
+        flag that stores when taxi is carrying a passenger
+        
+    actual_request_executing : int
+        id of request that is being executed by the taxi
+        
+    requests_completed : list of ints
+        list of requests completed by taxi
+        
+    waiting_time : int
+        time spent with empty waiting
+    
+    useful_travel_time : int
+        time spent with carrying a passenger
+        
+    empty_travel_time : int
+        time spent with travelling to a request
+        
+    next_destination : Queue
+        Queue that stores the path forward of the taxi
+    
     """
     def __init__(self,coords = None,taxi_id = None):
         if coords == None:
@@ -139,6 +256,33 @@ class Taxi():
 class Request():
     """
     Represents a request that is being made.
+    
+    Attributes
+    ----------
+    
+    ox,oy : int
+        grid coordinates of request origin
+        
+    dx,dy : int
+        grid coordinates of request destination
+        
+    request_id : int
+        unique id of request
+    
+    request_timestamp : int
+        timestamp of request
+        
+    pickup_timestamp : int
+        timestamp of taxi arrival
+        
+    dropoff_timestamp : int
+        timestamp of request completed
+    
+    taxi_id : int
+        id of taxi that serves the request
+    
+    waiting_time : int
+        how much time the user had to wait until picked up
     """
 
     def __init__(self,ocoords = None, dcoords=None, request_id = None, timestamp = None):
@@ -176,6 +320,61 @@ class Request():
 class Simulation():
     """
     Class for containing the elements of the simulation.
+    
+    Attributes
+    ----------
+    time : int
+        stores the time elapsed in the simulation
+    
+    num_taxis : int
+        how many taxis there are
+    
+    request_rate : float
+        rate of requests per time period
+    
+    hard_limit : int
+        max distance from which a taxi is still assigned to a request
+    
+    taxis : dict
+        storing all Taxi() instances in a dict
+        keys are `taxi_id`s
+    
+    latest_taxi_id : int
+        shows latest given taxi_id
+        used or generating new taxis
+    
+    taxis_available : list of int
+        stores `taxi_id`s of available taxis
+    
+    taxis_to_request : list of int
+        stores `taxi_id`s of taxis moving to serve a request
+    
+    taxis_to_destination : list of int
+        stores `taxi_id`s of taxis with passenger
+    
+    requests : dict
+        storing all Request() instances in a dict
+        keys are `request_id`s
+    
+    latest_request_id : int
+        shows latest given request_id
+        used or generating new requests
+    
+    requests_pending : list of int
+        requests waiting to be served
+    
+    requests_in_progress : list of int
+        requests with assigned taxis
+    
+    requests_fulfilled : list of int
+        requests that are closed
+    
+    requests_dropped : list of int
+        unsuccessful requests
+    
+    city : City
+        geometry of class City() underlying the simulation
+    
     """
 
     def __init__(self,**config):
@@ -185,6 +384,7 @@ class Simulation():
 
         self.num_taxis = config["num_taxis"]
         self.request_rate = config["request_rate"]
+        self.hard_limit = config["hard_limit"]
 
         self.taxis={}
         self.latest_taxi_id = 0
@@ -203,20 +403,22 @@ class Simulation():
 
         self.city = City(**config)
 
-        # initializing simulation with users
-        for u in range(self.num_users):
-            self.add_user(u)
+        # initializing simulation with taxis
         for t in range(self.num_taxis):
             self.add_taxi(t)
 
         # plotting variables
-        self.canvas = plt.figure()
-        self.canvas_ax = self.canvas.add_subplot(1,1,1)
-        self.cmap = plt.get_cmap('viridis')
-        self.taxi_colors = np.random.rand(self.num_taxis)
-        self.init_canvas()
+#        self.canvas = plt.figure()
+#        self.canvas_ax = self.canvas.add_subplot(1,1,1)
+#        self.cmap = plt.get_cmap('viridis')
+#        self.taxi_colors = np.random.rand(self.num_taxis)
+#        self.init_canvas()
 
     def init_canvas(self):
+        """
+        Initialize plot.
+        
+        """
         self.canvas_ax.clear()
         self.canvas_ax.set_xlim(-0.5,self.city.n-0.5)
         self.canvas_ax.set_ylim(-0.5,self.city.m-0.5)
@@ -227,12 +429,15 @@ class Simulation():
         self.canvas_ax.grid()
 
     def add_taxi(self,taxi_id):
-
+        """
+        Create new taxi.
+        
+        """
         # create a taxi at the base
         tx = Taxi(self.city.base_coords,self.latest_taxi_id)
         
         # add to taxi storage
-        self.taxis[self.lates_taxi_id]= tx
+        self.taxis[self.latest_taxi_id]= tx
         # add to available taxi storage
         self.city.A[self.city.base_coords[0],self.city.base_coords[1]].append(self.latest_taxi_id) # add to available taxi matrix
         self.taxis_available.append(self.latest_taxi_id)
@@ -241,10 +446,17 @@ class Simulation():
         self.latest_taxi_id+=1
 
     def add_request(self,request_id):
+        """
+        Create new request.
+        
+        """
         # here we randonly choose a place for the request
-        x,y = self.city.create_request_coords()
-
-        r = Request([x,y],self.latest_request_id)
+        # origin
+        ox,oy = self.city.create_request_coords()
+        # destination
+        dx,dy = self.city.create_request_coords()
+        
+        r = Request([ox,oy],[dx,dy],self.latest_request_id,self.time)
         self.latest_request_id+=1
         
         # add to request storage
@@ -253,7 +465,9 @@ class Simulation():
         self.requests_pending.append(self.latest_request_id)
         
     def go_to_base(self, taxi_id ,bcoords):
-    
+        """
+        This function sends the taxi to the base rom wherever it is.
+        """
         # actual coordinates
         acoords = [self.taxis[taxi_id].x,self.taxis[taxi_id].y]
         # path between actual coordinates and destination
@@ -273,7 +487,7 @@ class Simulation():
         r = self.requests[request_id]
         
         # search for nearest free taxi
-        possible_taxi_ids = self.find_nearest_available_taxi([r.ox,r.oy])
+        possible_taxi_ids = self.find_nearest_available_taxis([r.ox,r.oy])
         
         # if there was one
         if len(possible_taxi_ids)>0:
@@ -298,7 +512,7 @@ class Simulation():
             t.next_destination = Queue()
             # create new path: to user, then to destination
             path = self.city.create_path([t.x,t.y],[r.ox,r.oy])+\
-                self.city.create_path(r.ox,r.oy,r.dx,r.dy)[1:]
+                self.city.create_path([r.ox,r.oy],[r.dx,r.dy])[1:]
             for p in path:
                 t.next_destination.put(p)
                 
@@ -314,6 +528,15 @@ class Simulation():
     
         
     def pickup_request(self, request_id):
+        """
+        Pick up passenger.
+        
+        Parameters
+        ----------
+        
+        request_id : int
+        """
+        
         # mark pickup timestamp
         r=self.requests[request_id]
         r.pickup_timestamp=self.time
@@ -329,8 +552,14 @@ class Simulation():
         # update request and taxi instances
         self.requests[request_id]=r
         self.taxis[r.taxi_id]=t
+        print('\tP '+"request "+str(request_id)+' taxi '+str(t.taxi_id))
     
     def dropoff_request(self,request_id):
+        """
+        Drop off passenger.
+        
+        """
+        
         # mark dropoff timestamp
         r=self.requests[request_id]
         r.dropoff_timestamp=self.time
@@ -353,8 +582,13 @@ class Simulation():
         # update request and taxi instances
         self.requests[request_id]=r
         self.taxis[r.taxi_id]=t
+        print("\tD request "+str(request_id)+' taxi '+str(t.taxi_id))
     
-    def find_nearest_available_taxis(self, source, mode = "nearest", radius = None):
+    def find_nearest_available_taxis(
+            self,
+            source,
+            mode = "nearest",
+            radius = None):
         """
         This function lists the available taxis according to mode.
 
@@ -380,7 +614,7 @@ class Simulation():
         possible_plate_numbers = []
 
         distance = 0
-        while True:
+        while (distance<=self.hard_limit):
             # check available taxis in given nodes
             for x,y in list(frontier):
                 visited.append((x,y)) # mark the coordinate as visited
@@ -388,7 +622,7 @@ class Simulation():
                     possible_plate_numbers.append(t)
             # if we visited everybody, break
             if len(visited)==self.city.n*self.city.m:
-                print("No available taxis at this timepoint!")
+                print("\tNo available taxis at this timepoint!")
                 break
             # if we got available taxis in nearest mode, break
             if ((mode=="nearest") and (len(possible_plate_numbers)>0)):
@@ -450,34 +684,32 @@ class Simulation():
 #        self.plot_taxis_w_paths()
 #        self.plot_users()
 #        self.canvas.show()
-
+        print("timestamp "+str(self.time))
         test = np.random.rand()
         if test<self.request_rate:
-            print("A new request has been made with id "+self.latest_request_id+".")
             self.add_request(self.latest_request_id)
-
+        
+        # match requests to taxis, if possible
+        rp_list = self.requests_pending
+        for request_id in rp_list:
+            self.assign_request(request_id)
+        
+        # check for pickups
         tr_list = self.taxis_to_request
         for taxi_id in tr_list:
             t = self.taxis[taxi_id]
-            r = self.requests[t.request_id]
-
-            if ((t.x==r.x) and (t.y==r.y)):
-                print('I\'ve picked up request '+\
-                      str(t.request_id)+\
-                      ' with taxi '+\
-                      str(taxi_id)+'!')
-            else:
-                print("Taxi "+str(taxi_id)+" still has not reached the user.")
-            self.pickup_request(t.request_id)
+            r = self.requests[t.actual_request_executing]
+            
+            if ((t.x==r.ox) and (t.y==r.oy)):
+                self.pickup_request(t.actual_request_executing)
             
         # move every taxi one step towards its destination, or stay in place!
         for i,taxi_id in enumerate(self.taxis.keys()):
             t = self.taxis[taxi_id]
-            if ((t.next_destination.qsize()==0) and (t.with_passenger):
-                print("Dropping off my passenger! Taxi no "+\
-                      str(taxi_id)+' request '+\
-                      str(t.actual_request_executing)+'.')
+            # if a taxi with a passenger has arrived
+            if ((t.next_destination.qsize()==0) and (t.with_passenger)):
                 self.dropoff_request(t.actual_request_executing)
+                self.go_to_base(taxi_id,self.city.base_coords)
             try:
                 # move taxi one step forward
                 move = t.next_destination.get_nowait()
@@ -490,4 +722,3 @@ class Simulation():
 
         # step time
         self.time+=1
-        print(self.time)
