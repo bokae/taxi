@@ -68,7 +68,7 @@ class City():
                 for j in range(self.m):
                     self.A[i,j]=list()
                     
-            self.base_coords = [int(np.floor(self.n/2)),int(np.floor(self.m/2))]
+            self.base_coords = [int(np.floor(self.n/2)-1),int(np.floor(self.m/2)-1)]
 #            print(self.base_coords)
             self.base_sigma = config["base_sigma"]
 
@@ -252,6 +252,22 @@ class Taxi():
 
             # storing steps to take
             self.next_destination=Queue() # path to travel
+            
+    def __str__(self):
+        s = [
+                "Taxi ",
+                str(self.taxi_id),
+                ".\n\tPosition ",
+                str(self.x)+","+str(self.y)+"\n"
+                ]
+        if self.available:
+            s+=["\tAvailable.\n"]
+        elif self.to_request:
+            s+=["\tTravelling towards request "+str(self.actual_request_executing)+".\n"]
+        elif self.with_passenger:
+            s+=["\tCarrying the passenger of request "+str(self.actual_request_executing)+".\n"]
+
+        return "".join(s)
 
 class Request():
     """
@@ -315,6 +331,21 @@ class Request():
 
             self.waiting_time=0
             
+    def __str__(self):
+        s = [
+            "Request ",
+            str(self.request_id),
+            ".\n\tOrigin ",
+            str(self.ox)+","+str(self.oy)+"\n",
+            "\tDestination ",
+            str(self.dx)+","+str(self.dy)+"\n"
+        ]
+        if self.taxi_id!=None:
+            s+=["\tTaxi assigned ",str(self.taxi_id),".\n"]
+        else:
+            s+=["\tWaiting."]
+
+        return "".join(s) 
             
 
 class Simulation():
@@ -374,6 +405,8 @@ class Simulation():
     
     city : City
         geometry of class City() underlying the simulation
+        
+    show_map_labels : bool
     
     """
 
@@ -402,17 +435,22 @@ class Simulation():
         self.requests_dropped=[]
 
         self.city = City(**config)
+        
+        self.log = config["log"]
 
         # initializing simulation with taxis
         for t in range(self.num_taxis):
             self.add_taxi(t)
 
-        # plotting variables
-#        self.canvas = plt.figure()
-#        self.canvas_ax = self.canvas.add_subplot(1,1,1)
-#        self.cmap = plt.get_cmap('viridis')
-#        self.taxi_colors = np.random.rand(self.num_taxis)
-#        self.init_canvas()
+#         plotting variables
+        self.canvas = plt.figure()
+        self.canvas_ax = self.canvas.add_subplot(1,1,1)
+        self.canvas_ax.set_aspect('equal', 'box')
+        self.cmap = plt.get_cmap('viridis')
+        self.taxi_colors = np.linspace(0,1,self.num_taxis)
+        self.show_map_labels=config["show_map_labels"]
+        self.show_pending=config["show_pending"]
+        self.init_canvas()
 
     def init_canvas(self):
         """
@@ -423,9 +461,15 @@ class Simulation():
         self.canvas_ax.set_xlim(-0.5,self.city.n-0.5)
         self.canvas_ax.set_ylim(-0.5,self.city.m-0.5)
 
+        self.canvas_ax.tick_params(length=0)
         self.canvas_ax.xaxis.set_ticks(list(range(self.city.n)))
         self.canvas_ax.yaxis.set_ticks(list(range(self.city.m)))
-
+        if not self.show_map_labels:
+            self.canvas_ax.xaxis.set_ticklabels([])
+            self.canvas_ax.yaxis.set_ticklabels([])
+        
+        self.canvas_ax.set_aspect('equal', 'box')
+        self.canvas.tight_layout()
         self.canvas_ax.grid()
 
     def add_taxi(self,taxi_id):
@@ -457,12 +501,14 @@ class Simulation():
         dx,dy = self.city.create_request_coords()
         
         r = Request([ox,oy],[dx,dy],self.latest_request_id,self.time)
-        self.latest_request_id+=1
         
         # add to request storage
         self.requests[self.latest_request_id]=r 
         # add to free users
         self.requests_pending.append(self.latest_request_id)
+        
+        self.latest_request_id+=1
+
         
     def go_to_base(self, taxi_id ,bcoords):
         """
@@ -473,8 +519,13 @@ class Simulation():
         # path between actual coordinates and destination
         path = self.city.create_path(acoords,bcoords)
         # erase path memory
+        self.taxis[taxi_id].with_passenger=False
+        self.taxis[taxi_id].to_request=False
+        self.taxis[taxi_id].available=True
+#        print("Erasing path memory, Taxi "+str(taxi_id)+".")
         self.taxis[taxi_id].next_destination = Queue()
         # put path into taxi path queue
+#        print("Filling path memory, Taxi "+str(taxi_id)+". Path ",path)
         for p in path:
             self.taxis[taxi_id].next_destination.put(p)
         
@@ -501,7 +552,9 @@ class Simulation():
             
             # remove taxi from the available ones
             self.city.A[t.x,t.y].remove(taxi_id)
+#            print("\tRemoving taxi "+str(taxi_id))
             self.taxis_available.remove(taxi_id)
+            t.with_passenger=False
             t.available=False
             t.to_request=True
             
@@ -509,10 +562,13 @@ class Simulation():
             self.taxis_to_request.append(taxi_id)
 
             # forget the path that has been assigned
+#            print("Erasing path memory, Taxi "+str(taxi_id)+".")
             t.next_destination = Queue()
             # create new path: to user, then to destination
+
             path = self.city.create_path([t.x,t.y],[r.ox,r.oy])+\
                 self.city.create_path([r.ox,r.oy],[r.dx,r.dy])[1:]
+#            print("Filling path memory, Taxi "+str(taxi_id)+". Path",path)
             for p in path:
                 t.next_destination.put(p)
                 
@@ -525,6 +581,9 @@ class Simulation():
             
             # update request state
             self.requests[request_id]=r
+            
+            if self.log:
+                print("\tM request "+str(request_id)+" taxi "+str(taxi_id))
     
         
     def pickup_request(self, request_id):
@@ -548,15 +607,17 @@ class Simulation():
         # change taxi state to with passenger
         t.to_request=False
         t.with_passenger=True
+        t.available=False
         
         # update request and taxi instances
         self.requests[request_id]=r
         self.taxis[r.taxi_id]=t
-        print('\tP '+"request "+str(request_id)+' taxi '+str(t.taxi_id))
+        if self.log:
+            print('\tP '+"request "+str(request_id)+' taxi '+str(t.taxi_id))
     
     def dropoff_request(self,request_id):
         """
-        Drop off passenger.
+        Drop off passenger, when taxi reached request destination.
         
         """
         
@@ -577,12 +638,14 @@ class Simulation():
         
         # udate request lists
         self.requests_in_progress.remove(request_id)
+        t.requests_completed.append(request_id)
         self.requests_fulfilled.append(request_id)
         
         # update request and taxi instances
         self.requests[request_id]=r
         self.taxis[r.taxi_id]=t
-        print("\tD request "+str(request_id)+' taxi '+str(t.taxi_id))
+        if self.log:
+            print("\tD request "+str(request_id)+' taxi '+str(t.taxi_id))
     
     def find_nearest_available_taxis(
             self,
@@ -622,7 +685,8 @@ class Simulation():
                     possible_plate_numbers.append(t)
             # if we visited everybody, break
             if len(visited)==self.city.n*self.city.m:
-                print("\tNo available taxis at this timepoint!")
+                if self.log:
+                    print("\tNo available taxis at this timepoint!")
                 break
             # if we got available taxis in nearest mode, break
             if ((mode=="nearest") and (len(possible_plate_numbers)>0)):
@@ -641,84 +705,163 @@ class Simulation():
 
         return possible_plate_numbers
 
-    def plot_taxis_w_paths(self):
-        for i,taxi in enumerate(self.all_taxi):
-            self.canvas_ax.plot(taxi.x,taxi.y,'o',ms=10,c=self.cmap(self.taxi_colors[i]))
-            self.canvas_ax.annotate(
+    def plot_simulation(self):
+        """
+        Draws current state of the simulation on the predefined grid of the class.
+        
+        Is based on the taxis and requests and their internal states.
+        """
+        
+        self.init_canvas()
+        
+        for i,taxi_id in enumerate(self.taxis.keys()):
+            t = self.taxis[taxi_id]
+            
+            # plot a circle at the place of the taxi
+            self.canvas_ax.plot(t.x,t.y,'o',ms=10,c=self.cmap(self.taxi_colors[i]))
+            if self.show_map_labels:
+                self.canvas_ax.annotate(
                     str(i),
-                    xy = (taxi.x,taxi.y),
-                    xytext = (taxi.x+0.2,taxi.y+0.2),
+                    xy = (t.x,t.y),
+                    xytext = (t.x,t.y),
                     ha='center',
                     va='center',
-                    color=self.cmap(self.taxi_colors[i])
+                    color='white'
                 )
-            path=np.array([[taxi.x,taxi.y]]+list(taxi.next_destination.queue))
-            if len(path)>1:
-                xp,yp=path.T
-                self.canvas_ax.plot(
+            
+            # if the taxi has a path ahead of it, plot it
+            if (t.next_destination.qsize()!=0):
+                path=np.array([[t.x,t.y]]+list(t.next_destination.queue))
+                if len(path)>1:
+                    xp,yp=path.T
+                    # plot path
+                    self.canvas_ax.plot(
                         xp,
                         yp,
                         '-',
                         c=self.cmap(self.taxi_colors[i])
-                        )
-                self.canvas_ax.plot(path[-1][0],path[-1][1],'*',ms=5,c=self.cmap(self.taxi_colors[i]))
+                    )
+                    # plot a star at taxi destination
+                    self.canvas_ax.plot(
+                        path[-1][0],
+                        path[-1][1],
+                        '*',
+                        ms=5,
+                        c=self.cmap(self.taxi_colors[i])
+                    )
+                 
+            # if a taxi serves a request, put request on the map
+            request_id = t.actual_request_executing
+            if (request_id!=None) and (not t.with_passenger):
+                r = self.requests[request_id]
+                self.canvas_ax.plot(
+                    r.ox,
+                    r.oy,
+                    'ro',
+                    ms=3        
+                )
+                if self.show_map_labels:
+                    self.canvas_ax.annotate(
+                        request_id,
+                        xy=(r.ox,r.oy),
+                        xytext=(r.ox-0.2,r.oy-0.2),
+                        ha='center',
+                        va='center'
+                    )
+                
+        #plot taxi base
+        self.canvas_ax.plot(
+            self.city.base_coords[0],
+            self.city.base_coords[1],
+            'ks',
+            ms=15
+        )
+        
+        # plot pending requests
+        if self.show_pending:
+            for request_id in self.requests_pending:
+                self.canvas_ax.plot(
+                    self.requests[request_id].ox,
+                    self.requests[request_id].oy,
+                    'ro',
+                    ms=3,
+                    alpha=0.5
+                )
+        
+        self.canvas.show()
+                
+            
+    def move_taxi(self,taxi_id):
+        """
+        Move a taxi one step forward according to its path queue.
+        
+        Update taxi position on availablity grid, if necessary.
+        
+        Parameters
+        ----------
+        
+        taxi_id : int
+            unique id of taxi that we want to move
+        """
+        try:
+            # move taxi one step forward
+            t=self.taxis[taxi_id]
+            move = t.next_destination.get_nowait()
+            
+            old_x = t.x
+            old_y = t.y
+            
+            t.x = move[0]
+            t.y = move[1]
+            
+            # move available taxis on availability grid
+            if t.available:
+                self.city.A[old_x,old_y].remove(taxi_id)
+                self.city.A[t.x,t.y].append(taxi_id)
+    
+            # update taxi instance
+            self.taxis[taxi_id]=t
+            if self.log:
+                print("\tF moved taxi "+str(taxi_id)+" remaining path ",list(t.next_destination.queue),"\n",end="")
+        except:
+            pass
 
-#    def plot_users(self):
-#        for i,user in enumerate(self.all_user):
-#            self.canvas_ax.plot(
-#                    user.x,
-#                    user.y,
-#                    'ro',
-#                    ms=3)
-#            self.canvas_ax.annotate(
-#                    str(i),
-#                    xy=(user.x,user.y),
-#                    xytext=(user.x-0.2,user.y-0.2),
-#                    ha='center',
-#                    va='center')
+    def step_time(self,handler):
+        """
+        Ticks simulation time by 1.
+        """
 
+        if self.log:
+            print("timestamp "+str(self.time))
+        
+        # move every taxi one step towards its destination
+        for i,taxi_id in enumerate(self.taxis.keys()):
+            self.move_taxi(taxi_id)
+            t = self.taxis[taxi_id]
 
-    def step_time(self):
-
-#        self.init_canvas()
-#        self.plot_taxis_w_paths()
-#        self.plot_users()
-#        self.canvas.show()
-        print("timestamp "+str(self.time))
+            # if a taxi can pick up its passenger, do it
+            if (taxi_id in self.taxis_to_request):
+                r = self.requests[t.actual_request_executing]
+                if ((t.x==r.ox) and (t.y==r.oy)):
+                    self.pickup_request(t.actual_request_executing)
+            # if a taxi can drop of its passenger, do it
+            if (taxi_id in self.taxis_to_destination):
+                r = self.requests[t.actual_request_executing]
+                if (t.x==r.dx) and (t.y==r.dy):
+                    self.dropoff_request(r.request_id)
+                    self.go_to_base(taxi_id,self.city.base_coords)
+            
+        
+        # generate requests
         test = np.random.rand()
         if test<self.request_rate:
-            self.add_request(self.latest_request_id)
-        
-        # match requests to taxis, if possible
+            self.add_request(self.latest_request_id)    
+
+        # match requests to available taxis, if possible
         rp_list = self.requests_pending
         for request_id in rp_list:
             self.assign_request(request_id)
-        
-        # check for pickups
-        tr_list = self.taxis_to_request
-        for taxi_id in tr_list:
-            t = self.taxis[taxi_id]
-            r = self.requests[t.actual_request_executing]
-            
-            if ((t.x==r.ox) and (t.y==r.oy)):
-                self.pickup_request(t.actual_request_executing)
-            
-        # move every taxi one step towards its destination, or stay in place!
-        for i,taxi_id in enumerate(self.taxis.keys()):
-            t = self.taxis[taxi_id]
-            # if a taxi with a passenger has arrived
-            if ((t.next_destination.qsize()==0) and (t.with_passenger)):
-                self.dropoff_request(t.actual_request_executing)
-                self.go_to_base(taxi_id,self.city.base_coords)
-            try:
-                # move taxi one step forward
-                move = t.next_destination.get_nowait()
-                t.x = move[0]
-                t.y = move[1]
-                # update taxi instance
-                self.taxis[taxi_id]=t
-            except:
-                pass
 
         # step time
+        self.plot_simulation()
         self.time+=1
