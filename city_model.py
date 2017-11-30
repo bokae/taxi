@@ -437,20 +437,22 @@ class Simulation():
         self.city = City(**config)
         
         self.log = config["log"]
+        self.show_plot = config["show_plot"]
 
         # initializing simulation with taxis
         for t in range(self.num_taxis):
             self.add_taxi(t)
 
-#         plotting variables
-        self.canvas = plt.figure()
-        self.canvas_ax = self.canvas.add_subplot(1,1,1)
-        self.canvas_ax.set_aspect('equal', 'box')
-        self.cmap = plt.get_cmap('viridis')
-        self.taxi_colors = np.linspace(0,1,self.num_taxis)
-        self.show_map_labels=config["show_map_labels"]
-        self.show_pending=config["show_pending"]
-        self.init_canvas()
+        if self.show_plot:
+    #         plotting variables
+            self.canvas = plt.figure()
+            self.canvas_ax = self.canvas.add_subplot(1,1,1)
+            self.canvas_ax.set_aspect('equal', 'box')
+            self.cmap = plt.get_cmap('viridis')
+            self.taxi_colors = np.linspace(0,1,self.num_taxis)
+            self.show_map_labels=config["show_map_labels"]
+            self.show_pending=config["show_pending"]
+            self.init_canvas()
 
     def init_canvas(self):
         """
@@ -863,5 +865,6 @@ class Simulation():
             self.assign_request(request_id)
 
         # step time
-        self.plot_simulation()
+        if self.show_plot:
+            self.plot_simulation()
         self.time+=1

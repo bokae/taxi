@@ -22,7 +22,8 @@ config=dict(
     hard_limit=10, # do not serve requests that are that far
     show_map_labels=False, # show taxi and request numbers
     log=False, # be verbose about events in print log
-    show_pending=True # show pendng requests on map
+    show_pending=True, # show pendng requests on map
+    show_plot=True # show grid plot
 )
 s = Simulation(**config) # create a Simulation instance
 b = Button(description = "Step_time") # create clickable time tick button
