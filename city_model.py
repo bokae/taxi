@@ -414,6 +414,7 @@ class Simulation():
         
         # initializing empty grid
         self.time = 0
+        
 
         self.num_taxis = config["num_taxis"]
         self.request_rate = config["request_rate"]
@@ -611,6 +612,9 @@ class Simulation():
         t.with_passenger=True
         t.available=False
         
+        # set request waiting time
+        r.waiting_time = self.time - r.request_timestamp
+        
         # update request and taxi instances
         self.requests[request_id]=r
         self.taxis[r.taxi_id]=t
@@ -721,6 +725,7 @@ class Simulation():
             
             # plot a circle at the place of the taxi
             self.canvas_ax.plot(t.x,t.y,'o',ms=10,c=self.cmap(self.taxi_colors[i]))
+            
             if self.show_map_labels:
                 self.canvas_ax.annotate(
                     str(i),
@@ -805,9 +810,9 @@ class Simulation():
         taxi_id : int
             unique id of taxi that we want to move
         """
+        t=self.taxis[taxi_id]
         try:
-            # move taxi one step forward
-            t=self.taxis[taxi_id]
+            # move taxi one step forward    
             move = t.next_destination.get_nowait()
             
             old_x = t.x
@@ -816,18 +821,219 @@ class Simulation():
             t.x = move[0]
             t.y = move[1]
             
+            if t.with_passenger:
+                t.useful_travel_time+=1
+            else:
+                t.empty_travel_time+=1
+            
             # move available taxis on availability grid
             if t.available:
                 self.city.A[old_x,old_y].remove(taxi_id)
                 self.city.A[t.x,t.y].append(taxi_id)
     
             # update taxi instance
-            self.taxis[taxi_id]=t
             if self.log:
                 print("\tF moved taxi "+str(taxi_id)+" remaining path ",list(t.next_destination.queue),"\n",end="")
         except:
-            pass
+            self.taxis[taxi_id].waiting_time+=1
+        
+        self.taxis[taxi_id]=t
 
+    def evaluate_metrics(self):
+        """
+        Returns metrics for taxis and requests on its call.
+        
+        Outputs a dictionary that stores these metrics and the timestamp of the call.
+        
+        Output
+        ------
+            
+        timestamp: int
+            the timestamp of the measurement
+            
+        avg_req_length: list of floats
+            average trip lengths per taxi
+        
+        std_req_length: list of floats
+            standard deviation of trip lengths per taxi
+            
+        sum_req: list of ints
+            overall trip distaces taken by taxis
+            
+        online ratio: list of floats
+            ratio of useful travel time from overall time for taxis
+            online/(online+empty_travel+waiting)
+            
+        empty_travel_vs_waiting: list of floats
+            ratio of empty travelling from overall empty time
+            (waiting/(empty_travel+waiting))
+            
+        completed_request_ratio: float
+            percentage of requests completed from all requests
+            
+        avg_waiting_time: float
+            average waiting time of completed requests in the last 100 timesteps
+            
+        trip_lengths: list of ints
+            lengths of all completed requests up to the timestamp
+            
+        """
+        
+        # for the taxis
+        
+        # average trip lengths per taxi
+        # standard deviation of trip lengths per taxi
+        avg_req_length = []
+        std_req_length = []
+        sum_req = []
+        
+        online_ratio = []
+        empty_travel_vs_waiting = []
+        
+        
+        for taxi_id in self.taxis:
+            taxi = self.taxis[taxi_id]
+            req_lengths = []
+            for request_id in taxi.requests_completed:
+                r = self.requests[request_id]
+                length = np.abs(r.dy-r.oy)+np.abs(r.dx-r.ox) 
+                req_lengths.append(length)
+            avg_req_length.append(np.mean(req_lengths))
+            std_req_length.append(np.std(req_lengths))
+            sum_req.append(np.sum(req_lengths))
+            
+            u = taxi.useful_travel_time
+            w = taxi.waiting_time
+            e = taxi.empty_travel_time
+            
+            online_ratio.append(u/(u+w+e))
+            empty_travel_vs_waiting.append(w/(w+e))
+            
+        # for the requests
+        
+        completed_request_ratio = 0
+        total = 0
+        waiting_times = []
+        lengths = []
+        
+        for request_id in self.requests:
+            r = self.requests[request_id]
+            if r.dropoff_timestamp!=None:
+                completed_request_ratio+=1
+                lengths.append(np.abs(r.dy-r.oy)+np.abs(r.dx-r.ox))
+            total+=1
+            # to forget hsitory
+            # system-level waiting time peak detection
+            # it would not be sensible to include all previous waiting times
+            if (self.time-r.request_timestamp)<100:
+                waiting_times.append(r.waiting_time)
+        
+        completed_request_ratio = completed_request_ratio/total
+        avg_waiting_time = np.mean(waiting_times)
+        
+        return {
+            "timestamp":self.time,
+            "avg_req_length":avg_req_length,#p
+            "std_req_length":std_req_length,#p
+            "sum_req":sum_req,#p
+            "online_ratio":online_ratio,#p
+            "empty_travel_vs_waiting":empty_travel_vs_waiting,#p
+            "completed_request_ratio" : completed_request_ratio,#number
+            "avg_waiting_time": avg_waiting_time,#number
+            "trip_lengths" : lengths #p
+            }
+        
+    def step_batch(self,num_steps,run_id,fig_path="figs"):
+        """
+        Forwards time in given batch, and creates figures from the batch run.
+        
+        Parameters
+        ----------
+        
+        num_steps : int
+            number of timesteps to take
+            
+        run_id : str
+            an id of the run with a current config
+            it will be used in the figure filenames
+            
+        fig_path : str, optional, default figs
+            in which folder to save the figures
+        
+        """
+        
+        # tick the clock
+        for i in range(num_steps):
+            self.step_time("")
+        
+        # get metrics
+        data = self.evaluate_metrics()
+        
+        # plot metrics
+        canvas = plt.figure(figsize=(10,7))
+        canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
+             str(self.num_taxis)+\
+             ", request rate: %.2f)\n completed request ratio %.2f,average waiting time %.5f" \
+            % (
+                    self.request_rate,data['completed_request_ratio'],
+                    data['avg_waiting_time']
+                    )
+            )
+        ax = [canvas.add_subplot(2,3,i) for i in range(1,7)]
+        ax[0].hist(data['sum_req'])
+        ax[0].set_xlabel("Total trip length per taxi")
+        ax[1].hist(list(filter(lambda x: not np.isnan(x),data['avg_req_length'])))
+        ax[1].set_xlabel("Average trip length per taxi")
+        ax[2].hist(list(filter(lambda x: not np.isnan(x),data['std_req_length'])))
+        ax[2].set_xlabel("Std of trip lengths per taxi")
+        ax[3].hist(list(filter(lambda x: not np.isnan(x),data['online_ratio'])))
+        ax[3].set_xlabel("Online to empty ratio")
+        ax[4].hist(list(filter(lambda x: not np.isnan(x),data['empty_travel_vs_waiting'])))
+        ax[4].set_xlabel("Waiting to empty ratio")
+        ax[5].hist(list(filter(lambda x: not np.isnan(x),data['trip_lengths'])))
+        ax[5].set_xlabel("Trips lengths")
+        
+        # save figure
+        canvas.savefig(fig_path+"/run"+run_id+"_time_"+str(self.time)+".png")
+        return data
+    
+    def run_batch(self,run_id,num_iter,batch_size,fig_path="figs"):
+        """
+        Create a batch run, where at each batch step, a plot is made from the data.
+        
+        Parameters
+        ----------
+        
+        run_id : str
+            id that stands for simulation
+            
+        num_iter : int
+            how many times to run the batch
+            
+        batch_size : int
+            how many timesteps to take in one round
+            
+        fig_path : str, optional, default figs
+            where to save the plots
+        """
+        t = []
+        w = []
+        for i in range(num_iter):
+            data = self.step_batch(batch_size,run_id,fig_path=fig_path)
+            t.append(data["timestamp"])
+            w.append(data["avg_waiting_time"])
+            
+                # plot metrics
+        canvas = plt.figure(figsize=(10,7))
+        canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
+             str(self.num_taxis))
+        ax = canvas.add_subplot(1,1,1)
+        ax.plot(t,w,'ro-')
+        ax.set_xlabel("Timestamp")
+        ax.set_ylabel("Average waiting time")
+        # save figure
+        canvas.savefig(fig_path+"/run"+run_id+"_waiting_time.png")
+            
     def step_time(self,handler):
         """
         Ticks simulation time by 1.
@@ -847,12 +1053,11 @@ class Simulation():
                 if ((t.x==r.ox) and (t.y==r.oy)):
                     self.pickup_request(t.actual_request_executing)
             # if a taxi can drop of its passenger, do it
-            if (taxi_id in self.taxis_to_destination):
+            elif (taxi_id in self.taxis_to_destination):
                 r = self.requests[t.actual_request_executing]
                 if (t.x==r.dx) and (t.y==r.dy):
                     self.dropoff_request(r.request_id)
                     self.go_to_base(taxi_id,self.city.base_coords)
-            
         
         # generate requests
         test = np.random.rand()
