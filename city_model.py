@@ -155,7 +155,7 @@ class City():
                 ns.add((new_x,new_y))
         return ns
     
-    def create_request_coords(self):
+    def create_request_coords(self, mean=None):
         """
         Creates random request coords based on the base_coords and the
         base_sigma according to a 2D Gauss.
@@ -169,7 +169,8 @@ class City():
         
         done=False
         while(not done):
-            mean = self.base_coords
+            if mean is None:
+                mean = self.base_coords
             cov = np.array([[self.base_sigma**2,0],[0,self.base_sigma**2]])
             
             x,y=np.random.multivariate_normal(mean,cov)
@@ -501,7 +502,7 @@ class Simulation():
         # origin
         ox,oy = self.city.create_request_coords()
         # destination
-        dx,dy = self.city.create_request_coords()
+        dx,dy = self.city.create_request_coords((ox, oy))
         
         r = Request([ox,oy],[dx,dy],self.latest_request_id,self.time)
         
