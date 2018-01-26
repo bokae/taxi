@@ -420,6 +420,15 @@ class Simulation():
         self.num_taxis = config["num_taxis"]
         self.request_rate = config["request_rate"]
         self.hard_limit = config["hard_limit"]
+        
+        if "price_fixed" in config:
+            self.price_fixed = config["price_fixed"]
+        else:
+            self.price_fixed = 0
+        if "price_per_dist" in config:
+            self.price_per_dist = config["price_per_dist"]
+        else:
+            self.price_per_dist = 1
 
         self.taxis={}
         self.latest_taxi_id = 0
@@ -854,6 +863,9 @@ class Simulation():
             
         avg_req_length: list of floats
             average trip lengths per taxi
+
+        avg_req_price: list of floats
+            average trip price per taxi (including the fixed price and fare per distance)
         
         std_req_length: list of floats
             standard deviation of trip lengths per taxi
@@ -899,6 +911,8 @@ class Simulation():
                 r = self.requests[request_id]
                 length = np.abs(r.dy-r.oy)+np.abs(r.dx-r.ox) 
                 req_lengths.append(length)
+            req_prices = [length * self.price_per_dist + self.price_fixed for req_lengths]
+            avg_req_price.append(np.mean(req_prices))
             avg_req_length.append(np.mean(req_lengths))
             std_req_length.append(np.std(req_lengths))
             sum_req.append(np.sum(req_lengths))
@@ -935,6 +949,7 @@ class Simulation():
         return {
             "timestamp":self.time,
             "avg_req_length":avg_req_length,#p
+            "avg_req_price":avg_req_price,
             "std_req_length":std_req_length,#p
             "sum_req":sum_req,#p
             "online_ratio":online_ratio,#p
@@ -944,7 +959,7 @@ class Simulation():
             "trip_lengths" : lengths #p
             }
         
-    def step_batch(self,num_steps,run_id,fig_path="figs"):
+    def step_batch(self,num_steps,run_id,do_plot=True,fig_path="figs"):
         """
         Forwards time in given batch, and creates figures from the batch run.
         
@@ -970,35 +985,36 @@ class Simulation():
         # get metrics
         data = self.evaluate_metrics()
         
-        # plot metrics
-        canvas = plt.figure(figsize=(10,7))
-        canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
-             str(self.num_taxis)+\
-             ", request rate: %.2f)\n completed request ratio %.2f,average waiting time %.5f" \
-            % (
-                    self.request_rate,data['completed_request_ratio'],
-                    data['avg_waiting_time']
-                    )
-            )
-        ax = [canvas.add_subplot(2,3,i) for i in range(1,7)]
-        ax[0].hist(data['sum_req'])
-        ax[0].set_xlabel("Total trip length per taxi")
-        ax[1].hist(list(filter(lambda x: not np.isnan(x),data['avg_req_length'])))
-        ax[1].set_xlabel("Average trip length per taxi")
-        ax[2].hist(list(filter(lambda x: not np.isnan(x),data['std_req_length'])))
-        ax[2].set_xlabel("Std of trip lengths per taxi")
-        ax[3].hist(list(filter(lambda x: not np.isnan(x),data['online_ratio'])))
-        ax[3].set_xlabel("Online to empty ratio")
-        ax[4].hist(list(filter(lambda x: not np.isnan(x),data['empty_travel_vs_waiting'])))
-        ax[4].set_xlabel("Waiting to empty ratio")
-        ax[5].hist(list(filter(lambda x: not np.isnan(x),data['trip_lengths'])))
-        ax[5].set_xlabel("Trips lengths")
-        
-        # save figure
-        canvas.savefig(fig_path+"/run"+run_id+"_time_"+str(self.time)+".png")
+        if do_plot:
+            # plot metrics
+            canvas = plt.figure(figsize=(10,7))
+            canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
+                 str(self.num_taxis)+\
+                 ", request rate: %.2f)\n completed request ratio %.2f,average waiting time %.5f" \
+                % (
+                        self.request_rate,data['completed_request_ratio'],
+                        data['avg_waiting_time']
+                        )
+                )
+            ax = [canvas.add_subplot(2,3,i) for i in range(1,7)]
+            ax[0].hist(data['sum_req'])
+            ax[0].set_xlabel("Total trip length per taxi")
+            ax[1].hist(list(filter(lambda x: not np.isnan(x),data['avg_req_length'])))
+            ax[1].set_xlabel("Average trip length per taxi")
+            ax[2].hist(list(filter(lambda x: not np.isnan(x),data['std_req_length'])))
+            ax[2].set_xlabel("Std of trip lengths per taxi")
+            ax[3].hist(list(filter(lambda x: not np.isnan(x),data['online_ratio'])))
+            ax[3].set_xlabel("Online to empty ratio")
+            ax[4].hist(list(filter(lambda x: not np.isnan(x),data['empty_travel_vs_waiting'])))
+            ax[4].set_xlabel("Waiting to empty ratio")
+            ax[5].hist(list(filter(lambda x: not np.isnan(x),data['trip_lengths'])))
+            ax[5].set_xlabel("Trips lengths")
+            
+            # save figure
+            canvas. (fig_path+"/run"+run_id+"_time_"+str(self.time)+".png")
         return data
     
-    def run_batch(self,run_id,num_iter,batch_size,fig_path="figs"):
+    def run_batch(self,run_id,num_iter,batch_size,do_plot=True,fig_path="figs"):
         """
         Create a batch run, where at each batch step, a plot is made from the data.
         
@@ -1020,20 +1036,22 @@ class Simulation():
         t = []
         w = []
         for i in range(num_iter):
-            data = self.step_batch(batch_size,run_id,fig_path=fig_path)
+            data = self.step_batch(batch_size,run_id,do_plot=do_plot,fig_path=fig_path)
             t.append(data["timestamp"])
             w.append(data["avg_waiting_time"])
-            
-                # plot metrics
-        canvas = plt.figure(figsize=(10,7))
-        canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
-             str(self.num_taxis))
-        ax = canvas.add_subplot(1,1,1)
-        ax.plot(t,w,'ro-')
-        ax.set_xlabel("Timestamp")
-        ax.set_ylabel("Average waiting time")
-        # save figure
-        canvas.savefig(fig_path+"/run"+run_id+"_waiting_time.png")
+        
+        if do_plot:    
+            # plot metrics
+            canvas = plt.figure(figsize=(10,7))
+            canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
+                 str(self.num_taxis))
+            ax = canvas.add_subplot(1,1,1)
+            ax.plot(t,w,'ro-')
+            ax.set_xlabel("Timestamp")
+            ax.set_ylabel("Average waiting time")
+            # save figure
+            canvas.savefig(fig_path+"/run"+run_id+"_waiting_time.png")
+        
             
     def step_time(self,handler):
         """
