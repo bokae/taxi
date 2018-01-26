@@ -899,7 +899,7 @@ class Simulation():
         avg_req_length = []
         std_req_length = []
         sum_req = []
-        
+        avg_req_price = []
         online_ratio = []
         empty_travel_vs_waiting = []
         
@@ -911,7 +911,7 @@ class Simulation():
                 r = self.requests[request_id]
                 length = np.abs(r.dy-r.oy)+np.abs(r.dx-r.ox) 
                 req_lengths.append(length)
-            req_prices = [length * self.price_per_dist + self.price_fixed for req_lengths]
+            req_prices = [length * self.price_per_dist + self.price_fixed for length in req_lengths]
             avg_req_price.append(np.mean(req_prices))
             avg_req_length.append(np.mean(req_lengths))
             std_req_length.append(np.std(req_lengths))
@@ -1011,7 +1011,7 @@ class Simulation():
             ax[5].set_xlabel("Trips lengths")
             
             # save figure
-            canvas. (fig_path+"/run"+run_id+"_time_"+str(self.time)+".png")
+            canvas.savefig(fig_path+"/run"+run_id+"_time_"+str(self.time)+".png")
         return data
     
     def run_batch(self,run_id,num_iter,batch_size,do_plot=True,fig_path="figs"):
