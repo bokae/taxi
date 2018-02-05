@@ -10,6 +10,8 @@ import numpy as np
 from random import shuffle,choice
 import matplotlib.pyplot as plt
 from queue import Queue
+import pdb
+import pickle
 
 class City():
     """
@@ -987,6 +989,7 @@ class Simulation():
         
         if do_plot:
             # plot metrics
+            plt.close('all')
             canvas = plt.figure(figsize=(10,7))
             canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
                  str(self.num_taxis)+\
@@ -1011,9 +1014,11 @@ class Simulation():
             ax[5].set_xlabel("Trips lengths")
             
             # save figure
-            canvas.savefig(fig_path+"/run"+run_id+"_time_"+str(self.time)+".png")
+            canvas.savefig(fig_path+"/run"+run_id+"_time_"+str(self.time)+".pdf")
         return data
     
+
+
     def run_batch(self,run_id,num_iter,batch_size,do_plot=True,fig_path="figs"):
         """
         Create a batch run, where at each batch step, a plot is made from the data.
@@ -1035,11 +1040,18 @@ class Simulation():
         """
         t = []
         w = []
+        fields = set()
+        results = []
         for i in range(num_iter):
             data = self.step_batch(batch_size,run_id,do_plot=do_plot,fig_path=fig_path)
             t.append(data["timestamp"])
             w.append(data["avg_waiting_time"])
-        
+            results.append(data)
+            fields = fields.union(set(data.keys()))
+        data_path = 'results'
+        f = open(data_path + '/run' + run_id + 'data.pkl', 'wb')
+        pickle.dump(results, f)
+        f.close()
         if do_plot:    
             # plot metrics
             canvas = plt.figure(figsize=(10,7))
@@ -1050,7 +1062,25 @@ class Simulation():
             ax.set_xlabel("Timestamp")
             ax.set_ylabel("Average waiting time")
             # save figure
-            canvas.savefig(fig_path+"/run"+run_id+"_waiting_time.png")
+            canvas.savefig(fig_path+"/run"+run_id+"_waiting_time.pdf")
+
+            for field in fields:
+                if field == 'timestamp': continue
+                plt.close('all')
+                canvas = plt.figure(figsize=(10,7))
+                canvas.suptitle("Simulation (time: "+str(self.time)+", taxis: "+\
+                     str(self.num_taxis))
+                ax = canvas.add_subplot(1,1,1)
+                if type(results[0][field]) == list:
+                    temp_results = [np.array(res[field]) for res in results]
+                    y = [np.mean(res[np.logical_not(np.isnan(res))]) for res in temp_results]
+                else:
+                    y = [r[field] for r in results]
+                ax.plot(t,y,'ro-')
+                ax.set_xlabel('Timestamp')
+                ax.set_ylabel(field)
+                # save figure
+                canvas.savefig(fig_path+"/run"+run_id+"_" + field + ".pdf")
         
             
     def step_time(self,handler):
