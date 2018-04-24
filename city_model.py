@@ -1132,10 +1132,16 @@ class Simulation:
                 req_lengths.append(length)
                 price = self.eval_taxi_income(taxi_id)
                 req_prices.append(price)
-            avg_req_price.append(np.nanmean(req_prices))
-            std_req_price.append(np.nanstd(req_prices))
-            avg_req_length.append(np.nanmean(req_lengths))
-            std_req_length.append(np.nanstd(req_lengths))
+            if len(req_prices)>0:
+                avg_req_price.append(np.nanmean(req_prices))
+                std_req_price.append(np.nanstd(req_prices))
+                avg_req_length.append(np.nanmean(req_lengths))
+                std_req_length.append(np.nanstd(req_lengths))
+            else:
+                avg_req_price.append(0)
+                std_req_price.append(np.nan)
+                avg_req_length.append(0)
+                std_req_length.append(np.nan)
             num_req_completed.append(len(req_prices))
 
             u = taxi.useful_travel_time
