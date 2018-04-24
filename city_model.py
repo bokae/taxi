@@ -454,6 +454,17 @@ class Simulation:
         if "matching" in config:
             self.matching = config["matching"]
 
+        if "batch_size" in config:
+            self.batch_size = config["batch_size"]
+
+        if "max_time" in config:
+            self.max_time = config["max_time"]
+
+        if ("batch_size" in config) and ("max_time" in config):
+            self.num_iter = int(np.ceil(self.max_time/self.batch_size))
+        else:
+            self.num_iter = None
+
         self.taxis = {}
         self.latest_taxi_id = 0
 
@@ -1083,7 +1094,7 @@ class Simulation:
             ratio of useful travel time from overall time per taxi
             online/(online+empty_travel+waiting)
             
-        empty_travel_vs_waiting: list of floats
+        waiting_per_empty: list of floats
             ratio of empty travelling from overall empty time per taxi
             (waiting/(empty_travel+waiting))
             
@@ -1108,7 +1119,7 @@ class Simulation:
         std_req_price = []
         num_req_completed = []
         online_ratio = []
-        empty_travel_vs_waiting = []
+        waiting_per_empty = []
 
         for taxi_id in self.taxis:
             taxi = self.taxis[taxi_id]
@@ -1121,10 +1132,10 @@ class Simulation:
                 req_lengths.append(length)
                 price = self.eval_taxi_income(taxi_id)
                 req_prices.append(price)
-            avg_req_price.append(np.mean(req_prices))
-            std_req_price.append(np.std(req_prices))
-            avg_req_length.append(np.mean(req_lengths))
-            std_req_length.append(np.std(req_lengths))
+            avg_req_price.append(np.nanmean(req_prices))
+            std_req_price.append(np.nanstd(req_prices))
+            avg_req_length.append(np.nanmean(req_lengths))
+            std_req_length.append(np.nanstd(req_lengths))
             num_req_completed.append(len(req_prices))
 
             u = taxi.useful_travel_time
@@ -1132,7 +1143,7 @@ class Simulation:
             e = taxi.empty_travel_time
 
             online_ratio.append(u / (u + w + e))
-            empty_travel_vs_waiting.append(w / (w + e))
+            waiting_per_empty.append(w / (w + e))
 
         # for the requests
 
@@ -1164,110 +1175,43 @@ class Simulation:
             "std_req_length": std_req_length,  # p
             "num_req_completed" : num_req_completed,
             "online_ratio": online_ratio,  # p
-            "waiting_per_empty": empty_travel_vs_waiting,  # p
+            "waiting_per_empty": waiting_per_empty,  # p
         }
 
     def evaluate_aggregated_metrics(self,per_taxi_metrics):
         return {
             "timestamp" : per_taxi_metrics["timestamp"],
-            "avg_length" : np.mean(per_taxi_metrics["avg_req_length"]),
-            "std_length": np.std(per_taxi_metrics["avg_req_length"]),
-            "avg_price": np.mean(per_taxi_metrics["avg_req_price"]),
-            "std_price": np.std(per_taxi_metrics["avg_req_price"]),
-            "avg_num_trips": np.mean(per_taxi_metrics["num_req_completed"]),
-            "std_num_trips": np.std(per_taxi_metrics["num_req_completed"]),
-            "avg_online_ratio": np.mean(per_taxi_metrics["online_ratio"]),
-            "std_online_ratio": np.std(per_taxi_metrics["online_ratio"]),
-            "waiting_per_empty": np.mean(per_taxi_metrics["waiting_per_empty"]),
-            "waiting_per_empty": np.std(per_taxi_metrics["waiting_per_empty"])
+            "avg_length" : np.nanmean(per_taxi_metrics["avg_req_length"]),
+            "std_length": np.nanstd(per_taxi_metrics["avg_req_length"]),
+            "avg_price": np.nanmean(per_taxi_metrics["avg_req_price"]),
+            "std_price": np.nanstd(per_taxi_metrics["avg_req_price"]),
+            "avg_num_trips": np.nanmean(per_taxi_metrics["num_req_completed"]),
+            "std_num_trips": np.nanstd(per_taxi_metrics["num_req_completed"]),
+            "avg_online_ratio": np.nanmean(per_taxi_metrics["online_ratio"]),
+            "std_online_ratio": np.nanstd(per_taxi_metrics["online_ratio"]),
+            "waiting_per_empty": np.nanmean(per_taxi_metrics["waiting_per_empty"]),
+            "waiting_per_empty": np.nanstd(per_taxi_metrics["waiting_per_empty"])
         }
 
-    def step_batch(self, num_steps, run_id, do_plot=False, fig_path="figs"):
+    def run_batch(self, run_id):
         """
-        Forwards time in given batch, and creates figures from the batch run.
-        
-        Parameters
-        ----------
-        
-        num_steps : int
-            number of timesteps to take
-            
-        run_id : str
-            an id of the run with a current config
-            it will be used in the figure filenames
-
-        do_plot : bool
-            whether to plot or not while stepping the simulation forward
-            
-        fig_path : str, optional, default figs
-            in which folder to save the figures
-        
-        """
-
-        # tick the clock
-        for i in range(num_steps):
-            self.step_time("")
-
-        # # get metrics
-        # data = self.evaluate_metrics()
-
-        if do_plot:
-            # plot metrics
-            plt.close('all')
-            canvas = plt.figure(figsize=(10, 7))
-            canvas.suptitle(
-                "Simulation (time: " + str(self.time) + ", taxis: " +
-                str(self.num_taxis) +
-                ", request rate: %.2f)\n completed request ratio %.2f,average waiting time %.5f"
-                    % (
-                    self.request_rate, data['completed_request_ratio'],
-                    data['avg_waiting_time']
-                    )
-            )
-            ax = [canvas.add_subplot(2, 3, i) for i in range(1, 7)]
-            ax[0].hist(data['sum_req'])
-            ax[0].set_xlabel("Total trip length per taxi")
-            ax[1].hist(list(filter(lambda x: not np.isnan(x), data['avg_req_length'])))
-            ax[1].set_xlabel("Average trip length per taxi")
-            ax[2].hist(list(filter(lambda x: not np.isnan(x), data['std_req_length'])))
-            ax[2].set_xlabel("Std of trip lengths per taxi")
-            ax[3].hist(list(filter(lambda x: not np.isnan(x), data['online_ratio'])))
-            ax[3].set_xlabel("Online to empty ratio")
-            ax[4].hist(list(filter(lambda x: not np.isnan(x), data['empty_travel_vs_waiting'])))
-            ax[4].set_xlabel("Waiting to empty ratio")
-            ax[5].hist(list(filter(lambda x: not np.isnan(x), data['trip_lengths'])))
-            ax[5].set_xlabel("Trips lengths")
-
-            # save figure
-            canvas.savefig(fig_path + "/run" + run_id + "_time_" + str(self.time) + ".pdf")
-        # return data
-
-    def run_batch(self, run_id, num_iter, batch_size, do_plot=False, fig_path="figs"):
-        """
-        Create a batch run, where at each batch step, a plot is made from the data.
+        Create a batch run, where metrics are evaluated at every batch step and at the end.
         
         Parameters
         ----------
         
         run_id : str
             id that stands for simulation
-            
-        num_iter : int
-            how many times to run the batch
-            
-        batch_size : int
-            how many timesteps to take in one round
-
-        do_plot : bool
-            whether to plot results or not
-            
-        fig_path : str, optional, default figs
-            where to save the plots
         """
+
+        if self.num_iter is None:
+            print("No batch run parameters were defined in the config file, please add them!")
+            return
+
         print("Running simulation with run_id "+run_id+".")
-        print("Batch time "+str(batch_size)+".")
-        print("Number of iterations "+str(num_iter)+".")
-        print("Total time simulated "+str(batch_size*num_iter)+".")
+        print("Batch time "+str(self.batch_size)+".")
+        print("Number of iterations "+str(self.num_iter)+".")
+        print("Total time simulated "+str(self.batch_size*self.num_iter)+".")
         print("Starting...")
 
         data_path = 'results'
@@ -1278,18 +1222,23 @@ class Simulation:
         results = []
 
         time1 = time()
-        for i in range(num_iter):
-            self.step_batch(batch_size, run_id, do_plot=do_plot, fig_path=fig_path)
+        for i in range(self.num_iter):
+            # tick the clock
+            for k in range(self.batch_size):
+                self.step_time("")
+
             per_taxi_metrics = self.evaluate_per_taxi_metrics()
             aggregated_metrics = self.evaluate_aggregated_metrics(per_taxi_metrics)
             results.append(aggregated_metrics)
             time2=time()
-            print('Simulation batch '+str(i+1)+'/'+str(num_iter)+' , %.2f sec/batch.' % (time2-time1))
+            print('Simulation batch '+str(i+1)+'/'+str(self.num_iter)+' , %.2f sec/batch.' % (time2-time1))
             time1=time2
 
+        # outputs after batch steps
         pd.DataFrame.from_dict(results).to_csv(data_path + '/run_' + run_id + '_per_taxi_aggregates.csv')
 
-        f = open(data_path + '/run_' + run_id + 'per_taxi_distributions.json', 'w')
+        # distribution outputs at the end
+        f = open(data_path + '/run_' + run_id + '_per_taxi_distributions.json', 'w')
         json.dump(per_taxi_metrics,f)
         f.close()
 
