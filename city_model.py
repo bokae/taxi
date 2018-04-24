@@ -7,10 +7,12 @@ Created on Mon Nov 20 13:00:15 2017
 """
 
 import numpy as np
+import pandas as pd
+import json
 from random import shuffle, choice
 import matplotlib.pyplot as plt
 from queue import Queue
-import pickle
+from time import time
 from copy import deepcopy
 
 
@@ -632,7 +634,7 @@ class Simulation:
                 print("No pending requests.")
             return
 
-        if mode == "baseline":
+        if mode == "baseline_random_user_random_taxi":
 
             # go through the pending requests in a random order
             rp_list = deepcopy(self.requests_pending)
@@ -648,7 +650,7 @@ class Simulation:
                 else:
                     break
 
-        elif mode == "distance_based_match":
+        elif mode == "baseline_random_user_nearest_taxi":
             # go through the pending requests in a random order
             rp_list = deepcopy(self.requests_pending)
             shuffle(rp_list)
@@ -666,7 +668,7 @@ class Simulation:
                     taxi_id = choice(possible_taxi_ids)
                     self.assign_request(request_id, taxi_id)
 
-        elif mode == "user_optimized":
+        elif mode == "first_come_first_served":
             # go through the pending requests in the order of waiting times
             waiting_times = []
             for request_id in self.requests_pending:
@@ -686,7 +688,7 @@ class Simulation:
                     taxi_id = choice(possible_taxi_ids)
                     self.assign_request(request_id, taxi_id)
 
-        elif mode == "levelling1":
+        elif mode == "levelling1_random_user_poorest_taxi":
             # always order taxi that has earned the least money so far
 
             # go through the pending requests in a random order
@@ -696,7 +698,7 @@ class Simulation:
             # evaulate the earnings of the available taxis so far
             taxi_earnings = []
             for taxi_id in self.taxis_available:
-                taxi_earnings.append(-1*self.eval_taxi_income(taxi_id))
+                taxi_earnings.append(self.eval_taxi_income(taxi_id))
             ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
 
             # do the matching
@@ -710,7 +712,7 @@ class Simulation:
                 # make assignment
                 self.assign_request(request_id, taxi_id)
 
-        elif mode == "levelling2":
+        elif mode == "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit":
             # always order taxi that has earned the least money so far
             # but choose only from the nearest ones
             # hard limiting: e.g. if there is no taxi within the radius, then quit
@@ -722,7 +724,7 @@ class Simulation:
             # evaulate the earnings of the available taxis so far
             taxi_earnings = []
             for taxi_id in self.taxis_available:
-                taxi_earnings.append(-1 * self.eval_taxi_income(taxi_id))
+                taxi_earnings.append(self.eval_taxi_income(taxi_id))
             ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
 
             # do the matching
@@ -735,12 +737,12 @@ class Simulation:
                 possible_taxi_ids = self.find_nearest_available_taxis([r.ox,r.oy],mode="circle",radius=8)
                 for t in ta_list:
                     if t in possible_taxi_ids:
-                        # on first hit0000
+                        # on first hit
                         # make assignment
                         self.assign_request(request_id, t)
                         break
 
-        elif mode == "levelling3":
+        elif mode == "levelling3_random_user_nearest_poorest_taxi":
             # always order taxi that has earned the least money so far
             # but first choose only from the nearest ones
             # if there is no taxi within the radius, then pick the least earning one
@@ -752,7 +754,7 @@ class Simulation:
             # evaulate the earnings of the available taxis so far
             taxi_earnings = []
             for taxi_id in self.taxis_available:
-                taxi_earnings.append(-1 * self.eval_taxi_income(taxi_id))
+                taxi_earnings.append(self.eval_taxi_income(taxi_id))
             ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
 
             # do the matching
@@ -1053,12 +1055,12 @@ class Simulation:
 
         self.taxis[taxi_id] = t
 
-    def evaluate_metrics(self):
+    def evaluate_per_taxi_metrics(self):
         """
-        Returns metrics for taxis and requests on its call.
+        Returns metrics for taxis.
         
         Outputs a dictionary that stores these metrics and the timestamp of the call.
-        
+
         Output
         ------
             
@@ -1068,32 +1070,32 @@ class Simulation:
         avg_req_length: list of floats
             average trip lengths per taxi
 
-        avg_req_price: list of floats
-            average trip price per taxi (including the fixed price and fare per distance)
-        
         std_req_length: list of floats
             standard deviation of trip lengths per taxi
-            
-        sum_req: list of ints
-            overall trip distaces taken by taxis
-            
+
+        avg_req_price: list of floats
+            average trip price per taxi
+
+        std_req_price: list of floats
+            standard deviation of trip price per taxi
+
         online ratio: list of floats
-            ratio of useful travel time from overall time for taxis
+            ratio of useful travel time from overall time per taxi
             online/(online+empty_travel+waiting)
             
         empty_travel_vs_waiting: list of floats
-            ratio of empty travelling from overall empty time
+            ratio of empty travelling from overall empty time per taxi
             (waiting/(empty_travel+waiting))
             
-        completed_request_ratio: float
-            percentage of requests completed from all requests
+        #completed_request_ratio: float
+            #percentage of requests completed from all requests
             
-        avg_waiting_time: float
-            average waiting time of completed requests in the last 100 timesteps
-            
-        trip_lengths: list of ints
-            lengths of all completed requests up to the timestamp
-            
+        #avg_waiting_time: float
+            #average waiting time of completed requests in the last 100 timesteps
+
+        #std_waiting_time: float
+            #average waiting time of completed requests in the last 100 timesteps
+
         """
 
         # for the taxis
@@ -1102,23 +1104,28 @@ class Simulation:
         # standard deviation of trip lengths per taxi
         avg_req_length = []
         std_req_length = []
-        sum_req = []
         avg_req_price = []
+        std_req_price = []
+        num_req_completed = []
         online_ratio = []
         empty_travel_vs_waiting = []
 
         for taxi_id in self.taxis:
             taxi = self.taxis[taxi_id]
             req_lengths = []
+            req_prices = []
+
             for request_id in taxi.requests_completed:
                 r = self.requests[request_id]
                 length = np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox)
                 req_lengths.append(length)
-            req_prices = [length * self.price_per_dist + self.price_fixed for length in req_lengths]
+                price = self.eval_taxi_income(taxi_id)
+                req_prices.append(price)
             avg_req_price.append(np.mean(req_prices))
+            std_req_price.append(np.std(req_prices))
             avg_req_length.append(np.mean(req_lengths))
             std_req_length.append(np.std(req_lengths))
-            sum_req.append(np.sum(req_lengths))
+            num_req_completed.append(len(req_prices))
 
             u = taxi.useful_travel_time
             w = taxi.waiting_time
@@ -1129,40 +1136,53 @@ class Simulation:
 
         # for the requests
 
-        completed_request_ratio = 0
-        total = 0
-        waiting_times = []
-        lengths = []
+        # completed_request_ratio = 0
+        # total = 0
+        # waiting_times = []
+        # lengths = []
+        #
+        # for request_id in self.requests:
+        #     r = self.requests[request_id]
+        #     if r.dropoff_timestamp is not None:
+        #         completed_request_ratio += 1
+        #         lengths.append(np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox))
+        #     total += 1
+        #     # to forget hsitory
+        #     # system-level waiting time peak detection
+        #     # it would not be sensible to include all previous waiting times
+        #     if (self.time - r.request_timestamp) < 100:
+        #         waiting_times.append(r.waiting_time)
 
-        for request_id in self.requests:
-            r = self.requests[request_id]
-            if r.dropoff_timestamp is not None:
-                completed_request_ratio += 1
-                lengths.append(np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox))
-            total += 1
-            # to forget hsitory
-            # system-level waiting time peak detection
-            # it would not be sensible to include all previous waiting times
-            if (self.time - r.request_timestamp) < 100:
-                waiting_times.append(r.waiting_time)
-
-        completed_request_ratio = completed_request_ratio / total
-        avg_waiting_time = np.mean(waiting_times)
+        # completed_request_ratio = completed_request_ratio / total
+        # avg_waiting_time = np.mean(waiting_times)
 
         return {
             "timestamp": self.time,
             "avg_req_length": avg_req_length,  # p
+            "std_req_length": std_req_length,  # p
             "avg_req_price": avg_req_price,
             "std_req_length": std_req_length,  # p
-            "sum_req": sum_req,  # p
+            "num_req_completed" : num_req_completed,
             "online_ratio": online_ratio,  # p
-            "empty_travel_vs_waiting": empty_travel_vs_waiting,  # p
-            "completed_request_ratio": completed_request_ratio,  # number
-            "avg_waiting_time": avg_waiting_time,  # number
-            "trip_lengths": lengths  # p
+            "waiting_per_empty": empty_travel_vs_waiting,  # p
         }
 
-    def step_batch(self, num_steps, run_id, do_plot=True, fig_path="figs"):
+    def evaluate_aggregated_metrics(self,per_taxi_metrics):
+        return {
+            "timestamp" : per_taxi_metrics["timestamp"],
+            "avg_length" : np.mean(per_taxi_metrics["avg_req_length"]),
+            "std_length": np.std(per_taxi_metrics["avg_req_length"]),
+            "avg_price": np.mean(per_taxi_metrics["avg_req_price"]),
+            "std_price": np.std(per_taxi_metrics["avg_req_price"]),
+            "avg_num_trips": np.mean(per_taxi_metrics["num_req_completed"]),
+            "std_num_trips": np.std(per_taxi_metrics["num_req_completed"]),
+            "avg_online_ratio": np.mean(per_taxi_metrics["online_ratio"]),
+            "std_online_ratio": np.std(per_taxi_metrics["online_ratio"]),
+            "waiting_per_empty": np.mean(per_taxi_metrics["waiting_per_empty"]),
+            "waiting_per_empty": np.std(per_taxi_metrics["waiting_per_empty"])
+        }
+
+    def step_batch(self, num_steps, run_id, do_plot=False, fig_path="figs"):
         """
         Forwards time in given batch, and creates figures from the batch run.
         
@@ -1188,8 +1208,8 @@ class Simulation:
         for i in range(num_steps):
             self.step_time("")
 
-        # get metrics
-        data = self.evaluate_metrics()
+        # # get metrics
+        # data = self.evaluate_metrics()
 
         if do_plot:
             # plot metrics
@@ -1220,9 +1240,9 @@ class Simulation:
 
             # save figure
             canvas.savefig(fig_path + "/run" + run_id + "_time_" + str(self.time) + ".pdf")
-        return data
+        # return data
 
-    def run_batch(self, run_id, num_iter, batch_size, do_plot=True, fig_path="figs"):
+    def run_batch(self, run_id, num_iter, batch_size, do_plot=False, fig_path="figs"):
         """
         Create a batch run, where at each batch step, a plot is made from the data.
         
@@ -1244,56 +1264,37 @@ class Simulation:
         fig_path : str, optional, default figs
             where to save the plots
         """
+        print("Running simulation with run_id "+run_id+".")
+        print("Batch time "+str(batch_size)+".")
+        print("Number of iterations "+str(num_iter)+".")
+        print("Total time simulated "+str(batch_size*num_iter)+".")
+        print("Starting...")
+
+        data_path = 'results'
+
         t = []
         w = []
         fields = set()
         results = []
-        for i in range(num_iter):
-            data = self.step_batch(batch_size, run_id, do_plot=do_plot, fig_path=fig_path)
-            t.append(data["timestamp"])
-            w.append(data["avg_waiting_time"])
-            results.append(data)
-            fields = fields.union(set(data.keys()))
-        data_path = 'results'
-        f = open(data_path + '/run' + run_id + 'data.pkl', 'wb')
-        pickle.dump(results, f)
-        f.close()
-        if do_plot:
-            # plot metrics
-            canvas = plt.figure(figsize=(10, 7))
-            canvas.suptitle(
-                "Simulation (time: " + str(self.time) + ", taxis: " +
-                str(self.num_taxis)
-            )
-            ax = canvas.add_subplot(1, 1, 1)
-            ax.plot(t, w, 'ro-')
-            ax.set_xlabel("Timestamp")
-            ax.set_ylabel("Average waiting time")
-            # save figure
-            canvas.savefig(fig_path + "/run" + run_id + "_waiting_time.pdf")
 
-            for field in fields:
-                if field == 'timestamp':
-                    continue
-                plt.close('all')
-                canvas = plt.figure(figsize=(10, 7))
-                canvas.suptitle(
-                    "Simulation (time: "+
-                    str(self.time) +
-                    ", taxis: " +
-                    str(self.num_taxis)
-                )
-                ax = canvas.add_subplot(1, 1, 1)
-                if type(results[0][field]) == list:
-                    temp_results = [np.array(res[field]) for res in results]
-                    y = [np.mean(res[np.logical_not(np.isnan(res))]) for res in temp_results]
-                else:
-                    y = [r[field] for r in results]
-                ax.plot(t, y, 'ro-')
-                ax.set_xlabel('Timestamp')
-                ax.set_ylabel(field)
-                # save figure
-                canvas.savefig(fig_path + "/run" + run_id + "_" + field + ".pdf")
+        time1 = time()
+        for i in range(num_iter):
+            self.step_batch(batch_size, run_id, do_plot=do_plot, fig_path=fig_path)
+            per_taxi_metrics = self.evaluate_per_taxi_metrics()
+            aggregated_metrics = self.evaluate_aggregated_metrics(per_taxi_metrics)
+            results.append(aggregated_metrics)
+            time2=time()
+            print('Simulation batch '+str(i+1)+'/'+str(num_iter)+' , %.2f sec/batch.' % (time2-time1))
+            time1=time2
+
+        pd.DataFrame.from_dict(results).to_csv(data_path + '/run_' + run_id + '_per_taxi_aggregates.csv')
+
+        f = open(data_path + '/run_' + run_id + 'per_taxi_distributions.json', 'w')
+        json.dump(per_taxi_metrics,f)
+        f.close()
+
+        print("Done.\n")
+
 
     def step_time(self, handler):
         """
@@ -1321,8 +1322,7 @@ class Simulation:
                     self.go_to_base(taxi_id, self.city.base_coords)
 
         # generate requests
-        test = np.random.rand()
-        if test < self.request_rate:
+        for i in range(self.request_rate):
             self.add_request()
 
         # make matchings
