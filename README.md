@@ -1,6 +1,6 @@
 # Taxi simulation
 
-Usage from the same folder from a Jupyter Notebook.
+For debugging and fun purposes, display the map of the simulation with the taxis and requests color-coded and moving. Must be run from a Juypter Notebook. Due to some bugs in interactivity, sometimes the code cells have to be run several times before the simulation displays.
 
 
 Importing the classes, initializing interactive plotting, importing the timestep button.
@@ -12,7 +12,7 @@ from ipywidgets import Button
 import json
 ```
 
-Configuring the simulation in a JSON file, then presenting it visually:
+Configuring the simulation in a JSON file, then displaying the map.
 ```
 config=json.load(open('configs/run1.conf'))
 s = Simulation(**config) # create a Simulation instance
@@ -38,29 +38,18 @@ Current algorithm:
 
 # Batch run
 
-There is now a possibility of a batch run, that created plots of the simulation metrics in the figs folder. A sample batch run is the following:
+The file `run.py` initiates runs from config files and writes the results of the simulation to a csv and a json file. Usage is 
 
 ```
-
-from city_model import *
-
-config=dict(
-    n=40, # width of grid
-    m=20, # height of grid
-    num_taxis=500, # total number of taxis
-    request_rate=0.1, # request probability per time unit
-    base_sigma=5, # Gauss-std in grid units
-    hard_limit=10, # do not serve requests that are that far
-    show_map_labels=False, # show taxi and request numbers
-    log=False, # be verbose about events in print log
-    show_pending=False, # show pendng requests on map
-    show_plot=False # show grid plot
-)
-
-s = Simulation(**config) # create a Simulation instance
-
-s.run_batch("00",100,10000) # batch run with run_id "00"
-
+./run.py 0525_1_priced
 ```
 
-See functions docstrings for further details.
+where `0525_1_priced.conf `is a file name from the `configs` directory, and the results will be saved with a similarly beginning filename into the `results` directory as a `csv` (for the aggregated metrics) and two `json` files (one for the per taxi and one for the per results metrics).
+
+*Note: maybe you have to modify the path in the first line of the script to make it point to your favourite Python3 interpreter. The script has to be marked as executable for such usage. Or you can use a `python run.py ...` syntax.*
+
+# Shell scripts
+
+There are three additional shell scripts that help config parameter editing (`configs/add_param.sh`), batch config file generation (`configs/generate_params.sh`) and batch running of several configurations (`./batch_run.sh`). See the scripts for further documentation.
+
+*Note: the scripts have to be marked as executable. Or you can use a `bash batch_run.sh ...` syntax.*
