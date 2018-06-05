@@ -1,16 +1,21 @@
 #!/home/bokanyie/anaconda3/bin/python
-# This is a batch run script for the simulation from terminal.
-# It expects the name of a config file from the 'configs/' dir.
-# It runs a batch simulation with setting from the config file.
-# It uses the name of the config file before the .con part as run_id.
 
+# This is a single mode run script for the simulation from terminal.
+# It expects the name of a config file from the 'configs/' dir,
+# without the .conf extension.
+# It runs a batch simulation with settings from the config file.
+# It uses the name of the config file before the .conf part as run_id.
+# Outputs are written to the results/ directory.
+
+# Example usage:
+# >>> ./run.py simple
 
 from city_model import *
 import sys
 import os
 
-if (len(sys.argv)>1) and (os.path.exists('configs/'+sys.argv[1])):
-    run_id=sys.argv[1].split(".")[0]
+if (len(sys.argv)>1) and (os.path.exists('configs/'+sys.argv[1]+'.conf')):
+    run_id=sys.argv[1]
     config=json.load(open('configs/'+run_id+'.conf'))
     s = Simulation(**config) # create a Simulation instance
     s.run_batch(run_id)
