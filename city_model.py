@@ -678,7 +678,7 @@ class Simulation:
             taxi_counter_max = len(self.taxis_available)
 
             for request_id in rp_list:
-                if taxi_counter>taxi_counter_max:
+                if taxi_counter>=taxi_counter_max:
                     break
 
                 # select a random taxi
@@ -706,7 +706,7 @@ class Simulation:
             taxi_counter_max = len(self.taxis_available)
 
             for request_id in rp_list:
-                if taxi_counter > taxi_counter_max:
+                if taxi_counter >= taxi_counter_max:
                     break
                 # fetch request
                 r = self.requests[request_id]
@@ -739,7 +739,7 @@ class Simulation:
             taxi_counter_max = len(self.taxis_available)
 
             for request_id in rp_list:
-                if taxi_counter > taxi_counter_max:
+                if taxi_counter >= taxi_counter_max:
                     break
                 # fetch request
                 r = self.requests[request_id]
@@ -778,7 +778,7 @@ class Simulation:
             taxi_counter_max = len(self.taxis_available)
 
             for request_id in rp_list:
-                if taxi_counter > taxi_counter_max:
+                if taxi_counter >= taxi_counter_max:
                     break
 
                 # take the least earning taxi so far to request
@@ -821,7 +821,7 @@ class Simulation:
             taxi_counter_max = len(self.taxis_available)
 
             for request_id in rp_list:
-                if taxi_counter > taxi_counter_max:
+                if taxi_counter >= taxi_counter_max:
                     break
 
                 r = self.requests[request_id]
@@ -863,7 +863,7 @@ class Simulation:
             taxi_counter_max = len(self.taxis_available)
 
             for request_id in rp_list:
-                if taxi_counter > taxi_counter_max:
+                if taxi_counter >= taxi_counter_max:
                     break
 
                 r = self.requests[request_id]
