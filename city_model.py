@@ -674,14 +674,19 @@ class Simulation:
 
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
-            for i in range(min(len(rp_list),len(self.taxis_available))):
-                request_id = rp_list[i]
-                
+            taxi_counter = 0
+            taxi_counter_max = len(self.taxis_available)
+
+            for request_id in rp_list:
+                if taxi_counter>taxi_counter_max:
+                    break
+
                 # select a random taxi
                 taxi_id = choice(self.taxis_available)
 
                 # make assignment
                 self.assign_request(request_id, taxi_id)
+                taxi_counter+=1
 
         elif mode == "baseline_random_user_nearest_taxi":
             # go through the pending requests in the order of waiting times
@@ -697,8 +702,12 @@ class Simulation:
 
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
-            for i in range(min(len(rp_list),len(self.taxis_available))):
-                request_id = rp_list[i]
+            taxi_counter = 0
+            taxi_counter_max = len(self.taxis_available)
+
+            for request_id in rp_list:
+                if taxi_counter > taxi_counter_max:
+                    break
                 # fetch request
                 r = self.requests[request_id]
 
@@ -710,6 +719,7 @@ class Simulation:
                     # select taxi
                     taxi_id = choice(possible_taxi_ids)
                     self.assign_request(request_id, taxi_id)
+                    taxi_counter+=1
 
         elif mode == "first_come_first_served":
             # go through the pending requests in the order of waiting times
@@ -725,7 +735,12 @@ class Simulation:
 
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
+            taxi_counter = 0
+            taxi_counter_max = len(self.taxis_available)
+
             for request_id in rp_list:
+                if taxi_counter > taxi_counter_max:
+                    break
                 # fetch request
                 r = self.requests[request_id]
 
@@ -737,6 +752,7 @@ class Simulation:
                     # select taxi
                     taxi_id = choice(possible_taxi_ids)
                     self.assign_request(request_id, taxi_id)
+                    taxi_counter+=1
 
         elif mode == "levelling1_random_user_poorest_taxi":
             # always order taxi that has earned the least money so far
@@ -758,15 +774,19 @@ class Simulation:
             ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
 
             # do the matching
-            for i in range(min(len(ta_list),len(rp_list))):
-                # take request
-                request_id = rp_list[i]
+            taxi_counter = 0
+            taxi_counter_max = len(self.taxis_available)
+
+            for request_id in rp_list:
+                if taxi_counter > taxi_counter_max:
+                    break
 
                 # take the least earning taxi so far to request
                 taxi_id = ta_list[i]
 
                 # make assignment
                 self.assign_request(request_id, taxi_id)
+                taxi_counter+=1
 
         elif mode == "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit":
             # always order taxi that has earned the least money so far
@@ -797,9 +817,13 @@ class Simulation:
             ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
 
             # do the matching
-            for i in range(min(len(ta_list), len(rp_list))):
-                # take request
-                request_id = rp_list[i]
+            taxi_counter = 0
+            taxi_counter_max = len(self.taxis_available)
+
+            for request_id in rp_list:
+                if taxi_counter > taxi_counter_max:
+                    break
+
                 r = self.requests[request_id]
 
                 # find nearest vehicles in a radius
@@ -809,6 +833,7 @@ class Simulation:
                         # on first hit
                         # make assignment
                         self.assign_request(request_id, t)
+                        taxi_counter+=1
                         break
 
 
@@ -834,9 +859,13 @@ class Simulation:
             ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
 
             # do the matching
-            for i in range(min(len(ta_list), len(rp_list))):
-                # take request
-                request_id = rp_list[i]
+            taxi_counter = 0
+            taxi_counter_max = len(self.taxis_available)
+
+            for request_id in rp_list:
+                if taxi_counter > taxi_counter_max:
+                    break
+
                 r = self.requests[request_id]
 
                 # find nearest vehicles in a radius
@@ -846,7 +875,9 @@ class Simulation:
                         # on first hit
                         # make assignment
                         self.assign_request(request_id, t)
+                        taxi_counter+=1
                         break
+                #????
                 if (self.requests[request_id].taxi_id is None) and (len(self.taxis_available)>0):
                     self.assign_request(request_id, choice(self.taxis_available))
 
