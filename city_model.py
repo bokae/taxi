@@ -663,32 +663,42 @@ class Simulation:
 
             # go through the pending requests in the order of waiting times
             waiting_times = []
-            for request_id in self.requests_pending:
-                waiting_times.append(self.requests[request_id].waiting_time)
+            rp_list = deepcopy(self.requests_pending)
+            for request_id in rp_list:
+                w = self.requests[request_id].waiting_time
+                if w<=self.max_request_waiting_time:
+                    waiting_times.append(w)
+                else:
+                    self.requests_pending.remove(request_id)
+                    self.requests_dropped.append(request_id)
+
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
-            for request_id in rp_list:
-                if len(self.taxis_available)>0:
-                    # select a random taxi
-                    taxi_id = choice(self.taxis_available)
+            for i in range(min(len(rp_list),len(self.taxis_available))):
+                request_id = rp_list[i]
+                
+                # select a random taxi
+                taxi_id = choice(self.taxis_available)
 
-                    # make assignment
-                    self.assign_request(request_id, taxi_id)
-                else:
-                    # if no taxi could be assigned, drop request
-                    if (self.requests[request_id].taxi_id is None) and (self.requests[request_id].waiting_time > self.max_request_waiting_time):
-                        self.requests_pending.remove(request_id)
-                        self.requests_dropped.append(request_id)
+                # make assignment
+                self.assign_request(request_id, taxi_id)
 
         elif mode == "baseline_random_user_nearest_taxi":
-
             # go through the pending requests in the order of waiting times
             waiting_times = []
-            for request_id in self.requests_pending:
-                waiting_times.append(self.requests[request_id].waiting_time)
+            rp_list = deepcopy(self.requests_pending)
+            for request_id in rp_list:
+                w = self.requests[request_id].waiting_time
+                if w<=self.max_request_waiting_time:
+                    waiting_times.append(w)
+                else:
+                    self.requests_pending.remove(request_id)
+                    self.requests_dropped.append(request_id)
+
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
-            for request_id in rp_list:
+            for i in range(min(len(rp_list),len(self.taxis_available))):
+                request_id = rp_list[i]
                 # fetch request
                 r = self.requests[request_id]
 
@@ -700,17 +710,19 @@ class Simulation:
                     # select taxi
                     taxi_id = choice(possible_taxi_ids)
                     self.assign_request(request_id, taxi_id)
-                else:
-                    # if no taxi could be assigned, drop request
-                    if (self.requests[request_id].taxi_id is None) and (self.requests[request_id].waiting_time > self.max_request_waiting_time):
-                        self.requests_pending.remove(request_id)
-                        self.requests_dropped.append(request_id)
 
         elif mode == "first_come_first_served":
             # go through the pending requests in the order of waiting times
             waiting_times = []
-            for request_id in self.requests_pending:
-                waiting_times.append(self.requests[request_id].waiting_time)
+            rp_list = deepcopy(self.requests_pending)
+            for request_id in rp_list:
+                w = self.requests[request_id].waiting_time
+                if w<=self.max_request_waiting_time:
+                    waiting_times.append(w)
+                else:
+                    self.requests_pending.remove(request_id)
+                    self.requests_dropped.append(request_id)
+
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
             for request_id in rp_list:
@@ -767,8 +779,15 @@ class Simulation:
 
             # go through the pending requests in the order of waiting times
             waiting_times = []
-            for request_id in self.requests_pending:
-                waiting_times.append(self.requests[request_id].waiting_time)
+            rp_list = deepcopy(self.requests_pending)
+            for request_id in rp_list:
+                w = self.requests[request_id].waiting_time
+                if w<=self.max_request_waiting_time:
+                    waiting_times.append(w)
+                else:
+                    self.requests_pending.remove(request_id)
+                    self.requests_dropped.append(request_id)
+
             rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
 
             # evaulate the earnings of the available taxis so far
@@ -791,12 +810,6 @@ class Simulation:
                         # make assignment
                         self.assign_request(request_id, t)
                         break
-            for i in range(len(rp_list)):
-                # if no taxi could be assigned, and passenger has been waiting for too long drop request
-                if (self.requests[request_id].taxi_id is None) and (
-                        self.requests[request_id].waiting_time > self.max_request_waiting_time):
-                    self.requests_pending.remove(request_id)
-                    self.requests_dropped.append(request_id)
 
 
         elif mode == "levelling3_random_user_nearest_poorest_taxi":
