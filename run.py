@@ -1,4 +1,4 @@
-#!/home/bokanyie/anaconda3/bin/python
+#!/home/bokanyie/anaconda/envs/py36/bin/python
 
 # This is a single mode run script for the simulation from terminal.
 # It expects the name of a config file from the 'configs/' dir,
