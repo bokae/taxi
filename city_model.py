@@ -1315,7 +1315,6 @@ class Measurements:
         trip_avg_length = []
         trip_std_length = []
         trip_avg_price = []
-        trip_std_price = []
         trip_num_completed = []
 
         ratio_online = []
@@ -1333,19 +1332,15 @@ class Measurements:
                 r = self.simulation.requests[request_id]
                 length = np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox)
                 req_lengths.append(length)
-                price = self.simulation.eval_taxi_income(taxi_id)
-                req_prices.append(price)
-            if len(req_prices) > 0:
-                trip_avg_price.append(np.nanmean(req_prices))
-                trip_std_price.append(np.nanstd(req_prices))
+
+            if len(req_lengths) > 0:
                 trip_avg_length.append(np.nanmean(req_lengths))
                 trip_std_length.append(np.nanstd(req_lengths))
             else:
-                trip_avg_price.append(0)
-                trip_std_price.append(np.nan)
                 trip_avg_length.append(0)
                 trip_std_length.append(np.nan)
             trip_num_completed.append(len(req_prices))
+            trip_avg_price.append(self.simulation.eval_taxi_income(taxi_id))
 
             s = taxi.time_serving
             w = taxi.time_waiting
@@ -1364,7 +1359,6 @@ class Measurements:
             "trip_avg_length": trip_avg_length,
             "trip_std_length": trip_std_length,
             "trip_avg_price": trip_avg_price,
-            "trip_std_price": trip_std_price,
             "trip_num_completed": trip_num_completed,
             "ratio_serving": ratio_serving,
             "ratio_cruising": ratio_cruising,
@@ -1410,14 +1404,14 @@ class Measurements:
         metrics = {"timestamp": per_taxi_metrics["timestamp"]}
 
         for k in per_taxi_metrics:
-            if k[0:3]=='trip':
+            if k[0:4]=='trip':
                 if k[5]=='a':
                     metrics['avg_'+k] = np.nanmean(per_taxi_metrics[k])
                     metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
             elif k[0:5]=='ratio':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-                y,x = np.histogram(per_taxi_metrics[k],bins=100,density=True)
+                y,x = np.histogram(per_taxi_metrics[k],bins=1000,density=True)
                 metrics['entropy_' + k] = entropy(y)
 
         for k in per_request_metrics:
