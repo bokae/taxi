@@ -15,6 +15,7 @@ from queue import Queue
 from time import time
 from copy import deepcopy
 from scipy.stats import entropy
+from collections import deque
 
 
 class City:
@@ -478,17 +479,23 @@ class Simulation:
         self.taxis = {}
         self.latest_taxi_id = 0
 
-        self.taxis_available = []
-        self.taxis_to_request = []
-        self.taxis_to_destination = []
+        self.taxis_available = set()
+        self.taxis_to_request = set()
+        self.taxis_to_destination = set()
 
         self.requests = {}
         self.latest_request_id = 0
 
-        self.requests_pending = []
-        self.requests_in_progress = []
-        self.requests_fulfilled = []
-        self.requests_dropped = []
+        self.requests_pending = set()
+
+        # speeding up going through requests in the order of waiting times
+        # they are pushed into a deque in the order of timestamps
+        self.requests_pending_deque = deque()
+        self.requests_pending_deque_temporary = deque()
+
+        self.requests_in_progress = set()
+        self.requests_fulfilled = set()
+        self.requests_dropped = set()
 
         self.city = City(**config)
 
@@ -548,7 +555,7 @@ class Simulation:
         # add to available taxi storage
         self.city.A[self.city.base_coords[0], self.city.base_coords[1]].append(
             self.latest_taxi_id)  # add to available taxi matrix
-        self.taxis_available.append(self.latest_taxi_id)
+        self.taxis_available.add(self.latest_taxi_id)
 
         # increase id
         self.latest_taxi_id += 1
@@ -569,7 +576,8 @@ class Simulation:
         # add to request storage
         self.requests[self.latest_request_id] = r
         # add to free users
-        self.requests_pending.append(self.latest_request_id)
+        self.requests_pending_deque.appendleft(self.latest_request_id)
+        self.requests_pending.add(self.latest_request_id)
 
         self.latest_request_id += 1
 
@@ -612,7 +620,7 @@ class Simulation:
         t.to_request = True
 
         # mark taxi as moving to request
-        self.taxis_to_request.append(taxi_id)
+        self.taxis_to_request.add(taxi_id)
 
         # forget the path that has been assigned
         t.next_destination = Queue()
@@ -625,7 +633,7 @@ class Simulation:
 
         # remove request from the pending ones, label it as "in progress"
         self.requests_pending.remove(request_id)
-        self.requests_in_progress.append(request_id)
+        self.requests_in_progress.add(request_id)
 
         # update taxi state in taxi storage
         self.taxis[taxi_id] = t
@@ -634,6 +642,45 @@ class Simulation:
 
         if self.log:
             print("\tM request " + str(request_id) + " taxi " + str(taxi_id))
+
+    def check_waiting_times(self):
+        """
+        At the end of each assingment turn, this function drops requests that have been waiting for too long.
+
+        """
+
+        # if there is something in the temporary list
+        if len(self.requests_pending_deque_temporary)>0:
+            # if the temporary list starts with a too old element
+            if self.requests[self.requests_pending_deque_temporary[0]].waiting_time >= self.max_request_waiting_time:
+                # clear temporary list
+                self.requests_pending_deque_temporary.clear()
+                # prune original list
+                l = len(self.requests_pending_deque)
+                for i in range(l):
+                    if self.requests[self.requests_pending_deque[-i-1]].waiting_time >= self.max_request_waiting_time:
+                        self.requests_pending_deque.pop()
+                    else:
+                        break
+            else:
+                # prune temporary list
+                for i in range(len(self.requests_pending_deque_temporary)):
+                    if self.requests[self.requests_pending_deque_temporary[-i-1]].waiting_time >= self.max_request_waiting_time:
+                        self.requests_pending_deque_temporary.pop()
+                    else:
+                        break
+        else:
+            # prune original list
+            l = len(self.requests_pending_deque)
+            for i in range(l):
+                if self.requests[self.requests_pending_deque[-i - 1]].waiting_time >= self.max_request_waiting_time:
+                    self.requests_pending_deque.pop()
+                else:
+                    break
+
+        self.requests_pending_deque.extend(self.requests_pending_deque_temporary)
+        self.requests_pending_deque_temporary.clear()
+        self.requests_pending=set(self.requests_pending_deque)
 
     def matching_algorithm(self, mode="baseline"):
         """
@@ -657,136 +704,40 @@ class Simulation:
 
         if mode == "baseline_random_user_random_taxi":
 
-            # go through the pending requests in a random order
-            #rp_list = deepcopy(self.requests_pending)
-            #shuffle(rp_list)
-
-            # go through the pending requests in the order of waiting times
-            waiting_times = []
-            rp_list = deepcopy(self.requests_pending)
-            for request_id in rp_list:
-                w = self.requests[request_id].waiting_time
-                if w<=self.max_request_waiting_time:
-                    waiting_times.append(w)
-                else:
-                    self.requests_pending.remove(request_id)
-                    self.requests_dropped.append(request_id)
-
-            rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
-
-            taxi_counter = 0
-            taxi_counter_max = len(self.taxis_available)
-
-            for request_id in rp_list:
-                if taxi_counter>=taxi_counter_max:
-                    break
-
+            while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
                 # select a random taxi
-                taxi_id = choice(self.taxis_available)
+                taxi_id = choice(tuple(self.taxis_available))
+
+                # select oldest request from deque
+                request_id = self.requests_pending_deque.pop()
 
                 # make assignment
                 self.assign_request(request_id, taxi_id)
-                taxi_counter+=1
+
+            self.check_waiting_times()
 
         elif mode == "baseline_random_user_nearest_taxi":
-            # go through the pending requests in the order of waiting times
-            waiting_times = []
-            rp_list = deepcopy(self.requests_pending)
-            for request_id in rp_list:
-                w = self.requests[request_id].waiting_time
-                if w<=self.max_request_waiting_time:
-                    waiting_times.append(w)
-                else:
-                    self.requests_pending.remove(request_id)
-                    self.requests_dropped.append(request_id)
 
-            rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
+            while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
 
-            taxi_counter = 0
-            taxi_counter_max = len(self.taxis_available)
+                # select oldest request from deque
+                request_id = self.requests_pending_deque.pop()
 
-            for request_id in rp_list:
-                if taxi_counter >= taxi_counter_max:
-                    break
                 # fetch request
                 r = self.requests[request_id]
-
-                # search for nearest free taxi
+                # search for nearest free taxis
                 possible_taxi_ids = self.find_nearest_available_taxis([r.ox, r.oy])
 
-                # if there was one
+                # if there were any taxis near
                 if len(possible_taxi_ids) > 0:
                     # select taxi
                     taxi_id = choice(possible_taxi_ids)
                     self.assign_request(request_id, taxi_id)
-                    taxi_counter+=1
-
-        elif mode == "first_come_first_served":
-            # go through the pending requests in the order of waiting times
-            waiting_times = []
-            rp_list = deepcopy(self.requests_pending)
-            for request_id in rp_list:
-                w = self.requests[request_id].waiting_time
-                if w<=self.max_request_waiting_time:
-                    waiting_times.append(w)
                 else:
-                    self.requests_pending.remove(request_id)
-                    self.requests_dropped.append(request_id)
+                    # mark request as still pending
+                    self.requests_pending_deque_temporary.appendleft(request_id)
 
-            rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
-
-            taxi_counter = 0
-            taxi_counter_max = len(self.taxis_available)
-
-            for request_id in rp_list:
-                if taxi_counter >= taxi_counter_max:
-                    break
-                # fetch request
-                r = self.requests[request_id]
-
-                # search for nearest free taxi
-                possible_taxi_ids = self.find_nearest_available_taxis([r.ox, r.oy])
-
-                # if there was one
-                if len(possible_taxi_ids) > 0:
-                    # select taxi
-                    taxi_id = choice(possible_taxi_ids)
-                    self.assign_request(request_id, taxi_id)
-                    taxi_counter+=1
-
-        elif mode == "levelling1_random_user_poorest_taxi":
-            # always order taxi that has earned the least money so far
-
-            # go through the pending requests in a random order
-            # rp_list = deepcopy(self.requests_pending)
-            # shuffle(rp_list)
-
-            # go through the pending requests in the order of waiting times
-            waiting_times = []
-            for request_id in self.requests_pending:
-                waiting_times.append(self.requests[request_id].waiting_time)
-            rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
-
-            # evaulate the earnings of the available taxis so far
-            taxi_earnings = []
-            for taxi_id in self.taxis_available:
-                taxi_earnings.append(self.eval_taxi_income(taxi_id))
-            ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
-
-            # do the matching
-            taxi_counter = 0
-            taxi_counter_max = len(self.taxis_available)
-
-            for request_id in rp_list:
-                if taxi_counter >= taxi_counter_max:
-                    break
-
-                # take the least earning taxi so far to request
-                taxi_id = ta_list[i]
-
-                # make assignment
-                self.assign_request(request_id, taxi_id)
-                taxi_counter+=1
+            self.check_waiting_times()
 
         elif mode == "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit":
             # always order taxi that has earned the least money so far
@@ -797,92 +748,34 @@ class Simulation:
             # rp_list = deepcopy(self.requests_pending)
             # shuffle(rp_list)
 
-            # go through the pending requests in the order of waiting times
-            waiting_times = []
-            rp_list = deepcopy(self.requests_pending)
-            for request_id in rp_list:
-                w = self.requests[request_id].waiting_time
-                if w<=self.max_request_waiting_time:
-                    waiting_times.append(w)
-                else:
-                    self.requests_pending.remove(request_id)
-                    self.requests_dropped.append(request_id)
-
-            rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
-
             # evaulate the earnings of the available taxis so far
-            taxi_earnings = []
-            for taxi_id in self.taxis_available:
-                taxi_earnings.append(self.eval_taxi_income(taxi_id))
-            ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
+            ta_list = list(self.taxis_available)
+            taxi_earnings = [self.eval_taxi_income(taxi_id) for taxi_id in ta_list]
+            ta_list = list(np.array(ta_list)[np.argsort(taxi_earnings)])
 
-            # do the matching
-            taxi_counter = 0
-            taxi_counter_max = len(self.taxis_available)
+            while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
 
-            for request_id in rp_list:
-                if taxi_counter >= taxi_counter_max:
-                    break
+                # select oldest request from deque
+                request_id = self.requests_pending_deque.pop()
 
+                # fetch request
                 r = self.requests[request_id]
 
                 # find nearest vehicles in a radius
                 possible_taxi_ids = self.find_nearest_available_taxis([r.ox,r.oy],mode="circle",radius=self.hard_limit)
+
+                hit = 0
                 for t in ta_list:
                     if t in possible_taxi_ids:
                         # on first hit
                         # make assignment
                         self.assign_request(request_id, t)
-                        taxi_counter+=1
+                        hit=1
                         break
+                if not hit:
+                    self.requests_pending_deque_temporary.appendleft(request_id)
 
-
-        elif mode == "levelling3_random_user_nearest_poorest_taxi":
-            # always order taxi that has earned the least money so far
-            # but first choose only from the nearest ones
-            # if there is no taxi within the radius, then pick the least earning one
-
-            # go through the pending requests in a random order
-            # rp_list = deepcopy(self.requests_pending)
-            # shuffle(rp_list)
-
-            # go through the pending requests in the order of waiting times
-            waiting_times = []
-            for request_id in self.requests_pending:
-                waiting_times.append(self.requests[request_id].waiting_time)
-            rp_list = list(np.array(self.requests_pending)[np.argsort(waiting_times)])
-
-            # evaulate the earnings of the available taxis so far
-            taxi_earnings = []
-            for taxi_id in self.taxis_available:
-                taxi_earnings.append(self.eval_taxi_income(taxi_id))
-            ta_list = list(np.array(self.taxis_available)[np.argsort(taxi_earnings)])
-
-            # do the matching
-            taxi_counter = 0
-            taxi_counter_max = len(self.taxis_available)
-
-            for request_id in rp_list:
-                if taxi_counter >= taxi_counter_max:
-                    break
-
-                r = self.requests[request_id]
-
-                # find nearest vehicles in a radius
-                possible_taxi_ids = self.find_nearest_available_taxis([r.ox, r.oy], mode="circle", radius=8)
-                for t in ta_list:
-                    if t in possible_taxi_ids:
-                        # on first hit
-                        # make assignment
-                        self.assign_request(request_id, t)
-                        taxi_counter+=1
-                        break
-                #????
-                if (self.requests[request_id].taxi_id is None) and (len(self.taxis_available)>0):
-                    self.assign_request(request_id, choice(self.taxis_available))
-
-        # levelling4 could be based on expected income
-        # levelling5 could be based on distance and income together
+            self.check_waiting_times()
 
         else:
             print("I know of no such assigment mode! Please provide a valid one!")
@@ -903,7 +796,7 @@ class Simulation:
         t = self.taxis[r.taxi_id]
 
         self.taxis_to_request.remove(r.taxi_id)
-        self.taxis_to_destination.append(r.taxi_id)
+        self.taxis_to_destination.add(r.taxi_id)
 
         # change taxi state to with passenger
         t.to_request = False
@@ -938,12 +831,12 @@ class Simulation:
         # update taxi lists
         self.city.A[t.x, t.y].append(r.taxi_id)
         self.taxis_to_destination.remove(r.taxi_id)
-        self.taxis_available.append(r.taxi_id)
+        self.taxis_available.add(r.taxi_id)
 
         # udate request lists
         self.requests_in_progress.remove(request_id)
         t.requests_completed.append(request_id)
-        self.requests_fulfilled.append(request_id)
+        self.requests_fulfilled.add(request_id)
 
         # update request and taxi instances
         self.requests[request_id] = r
