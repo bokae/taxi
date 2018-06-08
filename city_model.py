@@ -6,16 +6,28 @@ Created on Mon Nov 20 13:00:15 2017
 @author: bokanyie
 """
 
+# Benchmark config file for runtime: 0525_1_priced.conf
+# Benchmark run: python run.py 0525_1_priced
+# Benchmark batch time average original: 14.438
+# Benchmark batch time average with RandomDict: 13.197, not much better...
+# Benchmark batch time after using more list comprehensions and filters: 12.045, not much better...
+# Benchmark batch time after generating coordinates in advance:  5.514, really great!
+# Benchmark batch time after fixing last variable in move_taxi: 5.115, not much gain.
+# Storing the neighbors in advance slightly improved performance.
+
 import numpy as np
 import pandas as pd
 import json
-from random import shuffle, choice
+from random import shuffle, choice, gauss
 import matplotlib.pyplot as plt
-from queue import Queue
 from time import time
 from copy import deepcopy
 from scipy.stats import entropy
+
+# special data types
 from collections import deque
+from queue import Queue
+from randomdict import RandomDict
 
 
 class City:
@@ -70,10 +82,15 @@ class City:
             # array that stores taxi_id of available taxis at the
             # specific position on the grid
             # we initialize this array with empy lists
-            self.A = np.empty((self.n, self.m), dtype=list)
+            self.A = np.empty((self.n, self.m), dtype=set)
             for i in range(self.n):
                 for j in range(self.m):
-                    self.A[i, j] = list()
+                    self.A[i, j] = set()
+
+            self.N = np.empty((self.n, self.m), dtype=set)
+            for i in range(self.n):
+                for j in range(self.m):
+                    self.N[i, j] = self.neighbors((i, j))
 
             self.base_coords = [int(np.floor(self.n / 2) - 1), int(np.floor(self.m / 2) - 1)]
             #            print(self.base_coords)
@@ -117,21 +134,20 @@ class City:
         """
 
         # distance along the x and the y axis
-        dx, dy = np.array(destination) - np.array(source)
+        d = {k:v for k,v in zip(['x','y'],np.array(destination) - np.array(source))}
+
         # create a sequence of "x"-es and "y"-s
         # we are going to shuffle this sequence
         # to get a random order of "x" and "y" direction steps
-        sequence = ['x'] * int(np.abs(dx)) + ['y'] * int(np.abs(dy))
+        sequence = ['x'] * int(np.abs(d['x'])) + ['y'] * int(np.abs(d['y']))
         shuffle(sequence)
+
         # source is included in the path
         path = [source]
         for item in sequence:
-            if item == "x":
-                # we add one step in the "x" direction based on the last position
-                path.append([np.sign(dx) + path[-1][0], 0 + path[-1][1]])
-            else:
-                # we add one step in the "y" direction based on the last position
-                path.append([0 + path[-1][0], np.sign(dy) + path[-1][1]])
+                # we add one step in the right direction based on the last position
+                path.append([np.sign(d[item]) + path[-1][0], 0 + path[-1][1]])
+
         return path
 
     def neighbors(self, coordinates):
@@ -153,14 +169,11 @@ class City:
             list containing the coordinates of the neighbors        
         """
 
-        ns = set()
-        for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]:
-            new_x = coordinates[0] + dx
-            new_y = coordinates[1] + dy
+        ns = [(coordinates[0] + dx, coordinates[1] + dy) for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]]
+        ns = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]),ns)
 
-            if (0 <= new_x) and (self.n > new_x) and (0 <= new_y) and (self.m > new_y):
-                ns.add((new_x, new_y))
-        return ns
+        return set(ns)
+
 
     def create_request_coords(self, mean=None):
         """
@@ -175,10 +188,12 @@ class City:
         """
 
         done = False
+        if mean is None:
+            mean = self.base_coords
+
+        cov = np.array([[self.base_sigma ** 2, 0], [0, self.base_sigma ** 2]])
+
         while not done:
-            if mean is None:
-                mean = self.base_coords
-            cov = np.array([[self.base_sigma ** 2, 0], [0, self.base_sigma ** 2]])
 
             x, y = np.random.multivariate_normal(mean, cov)
 
@@ -187,7 +202,18 @@ class City:
 
             if (x >= 0) and (x < self.n) and (y >= 0) and (y < self.m):
                 done = True
+
         return x, y
+
+    def generate_coords(self,length=None):
+
+        if length is None:
+            length=2e5
+
+        temp = map(lambda t:(int(round(t[0],0)),int(round(t[0],0))),[(gauss(self.base_coords[0],self.base_sigma),gauss(self.base_coords[1],self.base_sigma)) for i in range(length)])
+        temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]),temp)
+
+        return deque(temp)
 
 
 class Taxi:
@@ -256,7 +282,7 @@ class Taxi:
             self.with_passenger = False
 
             self.actual_request_executing = None
-            self.requests_completed = []
+            self.requests_completed = set()
 
             # types of time metrics to be stored
             self.time_waiting = 0
@@ -427,7 +453,7 @@ class Simulation:
 
     def __init__(self, **config):
 
-        # initializing empty grid
+        # initializing time
         self.time = 0
 
         self.num_taxis = config["num_taxis"]
@@ -476,14 +502,14 @@ class Simulation:
         else:
             self.num_iter = None
 
-        self.taxis = {}
+        self.taxis = RandomDict()
         self.latest_taxi_id = 0
 
-        self.taxis_available = set()
+        self.taxis_available = RandomDict()
         self.taxis_to_request = set()
         self.taxis_to_destination = set()
 
-        self.requests = {}
+        self.requests = RandomDict()
         self.latest_request_id = 0
 
         self.requests_pending = set()
@@ -498,6 +524,8 @@ class Simulation:
         self.requests_dropped = set()
 
         self.city = City(**config)
+        # initializing a bunch of random coordinate pairs for later usage
+        self.coordstack = self.city.generate_coords(length=self.max_time*self.request_rate*4)
 
         if "hard_limit" in config:
             self.hard_limit = config["hard_limit"]
@@ -553,9 +581,8 @@ class Simulation:
         # add to taxi storage
         self.taxis[self.latest_taxi_id] = tx
         # add to available taxi storage
-        self.city.A[self.city.base_coords[0], self.city.base_coords[1]].append(
-            self.latest_taxi_id)  # add to available taxi matrix
-        self.taxis_available.add(self.latest_taxi_id)
+        self.city.A[self.city.base_coords[0], self.city.base_coords[1]].add(self.latest_taxi_id)  # add to available taxi matrix
+        self.taxis_available[self.latest_taxi_id] = tx
 
         # increase id
         self.latest_taxi_id += 1
@@ -565,11 +592,22 @@ class Simulation:
         Create new request.
         
         """
-        # here we randonly choose a place for the request
+        # here we randomly choose a place for the request
+        # the random coordinates are pre-stored in a deque for faster access
+        # if there are no more pregenerated coordinates in the deque, we generate some more
         # origin
-        ox, oy = self.city.create_request_coords()
+        try:
+            ox, oy = self.coordstack.pop()
+        except IndexError:
+            self.coordstack.extend(self.city.generate_coords(length=self.max_time*self.request_rate*4))
+            ox, oy = self.coordstack.pop()
+
         # destination
-        dx, dy = self.city.create_request_coords((ox, oy))
+        try:
+            dx, dy = self.coordstack.pop()
+        except IndexError:
+            self.coordstack.extend(self.city.generate_coords(length=self.max_time*self.request_rate*4))
+            dx, dy = self.coordstack.pop()
 
         r = Request([ox, oy], [dx, dy], self.latest_request_id, self.time)
 
@@ -589,16 +627,22 @@ class Simulation:
         acoords = [self.taxis[taxi_id].x, self.taxis[taxi_id].y]
         # path between actual coordinates and destination
         path = self.city.create_path(acoords, bcoords)
+
+        # fetch object
+        t = self.taxis[taxi_id]
         # erase path memory
-        self.taxis[taxi_id].with_passenger = False
-        self.taxis[taxi_id].to_request = False
-        self.taxis[taxi_id].available = True
+        t.with_passenger = False
+        t.to_request = False
+        t.available = True
         #        print("Erasing path memory, Taxi "+str(taxi_id)+".")
-        self.taxis[taxi_id].next_destination = Queue()
+        t.next_destination = Queue()
         # put path into taxi path queue
         #        print("Filling path memory, Taxi "+str(taxi_id)+". Path ",path)
         for p in path:
-            self.taxis[taxi_id].next_destination.put(p)
+            t.next_destination.put(p)
+
+        # put object back to its place
+        self.taxis[taxi_id]=t
 
     def assign_request(self, request_id, taxi_id):
         """
@@ -614,7 +658,7 @@ class Simulation:
 
         # remove taxi from the available ones
         self.city.A[t.x, t.y].remove(taxi_id)
-        self.taxis_available.remove(taxi_id)
+        del self.taxis_available[taxi_id]
         t.with_passenger = False
         t.available = False
         t.to_request = True
@@ -645,42 +689,47 @@ class Simulation:
 
     def check_waiting_times(self):
         """
-        At the end of each assingment turn, this function drops requests that have been waiting for too long.
+        At the end of each assignment turn, this function drops requests that have been waiting for too long.
 
         """
 
+        # making local_variables
+        right = self.requests_pending_deque_temporary
+        left = self.requests_pending_deque
+        max_time = self.max_request_waiting_time
+
+
         # if there is something in the temporary list
-        if len(self.requests_pending_deque_temporary)>0:
+        if len(right)>0:
             # if the temporary list starts with a too old element
-            if self.requests[self.requests_pending_deque_temporary[0]].waiting_time >= self.max_request_waiting_time:
+            if self.requests[right[0]].waiting_time >= max_time:
                 # clear temporary list
-                self.requests_pending_deque_temporary.clear()
+                right.clear()
                 # prune original list
-                l = len(self.requests_pending_deque)
-                for i in range(l):
-                    if self.requests[self.requests_pending_deque[-i-1]].waiting_time >= self.max_request_waiting_time:
-                        self.requests_pending_deque.pop()
+                for i in range(len(left)):
+                    if self.requests[left[-i-1]].waiting_time >= max_time:
+                        left.pop()
                     else:
                         break
             else:
                 # prune temporary list
-                for i in range(len(self.requests_pending_deque_temporary)):
-                    if self.requests[self.requests_pending_deque_temporary[-i-1]].waiting_time >= self.max_request_waiting_time:
-                        self.requests_pending_deque_temporary.pop()
+                for i in range(len(right)):
+                    if self.requests[right[-i-1]].waiting_time >= max_time:
+                        right.pop()
                     else:
                         break
         else:
             # prune original list
-            l = len(self.requests_pending_deque)
-            for i in range(l):
-                if self.requests[self.requests_pending_deque[-i - 1]].waiting_time >= self.max_request_waiting_time:
-                    self.requests_pending_deque.pop()
+            for i in range(len(left)):
+                if self.requests[left[-i - 1]].waiting_time >= max_time:
+                    left.pop()
                 else:
                     break
 
-        self.requests_pending_deque.extend(self.requests_pending_deque_temporary)
+        left.extend(right)
         self.requests_pending_deque_temporary.clear()
-        self.requests_pending=set(self.requests_pending_deque)
+        self.requests_pending_deque = left
+        self.requests_pending=set(left)
 
     def matching_algorithm(self, mode="baseline"):
         """
@@ -706,7 +755,7 @@ class Simulation:
 
             while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
                 # select a random taxi
-                taxi_id = choice(tuple(self.taxis_available))
+                taxi_id = self.taxis_available.random_key()
 
                 # select oldest request from deque
                 request_id = self.requests_pending_deque.pop()
@@ -749,7 +798,7 @@ class Simulation:
             # shuffle(rp_list)
 
             # evaulate the earnings of the available taxis so far
-            ta_list = list(self.taxis_available)
+            ta_list = list(self.taxis_available.keys)
             taxi_earnings = [self.eval_taxi_income(taxi_id) for taxi_id in ta_list]
             ta_list = list(np.array(ta_list)[np.argsort(taxi_earnings)])
 
@@ -829,13 +878,13 @@ class Simulation:
         t.actual_request_executing = None
 
         # update taxi lists
-        self.city.A[t.x, t.y].append(r.taxi_id)
+        self.city.A[t.x, t.y].add(r.taxi_id)
         self.taxis_to_destination.remove(r.taxi_id)
-        self.taxis_available.add(r.taxi_id)
+        self.taxis_available[r.taxi_id] = t
 
         # udate request lists
         self.requests_in_progress.remove(request_id)
-        t.requests_completed.append(request_id)
+        t.requests_completed.add(request_id)
         self.requests_fulfilled.add(request_id)
 
         # update request and taxi instances
@@ -874,16 +923,16 @@ class Simulation:
         possible_plate_numbers = []
 
         distance = 0
-        while distance <= self.hard_limit:
+        taxis_found=0
+        while distance <= self.hard_limit and taxis_found<=len(self.taxis_available):
             # check available taxis in given nodes
             for x, y in list(frontier):
                 visited.append((x, y))  # mark the coordinate as visited
                 for t in self.city.A[x, y]:  # get all available taxis there
                     possible_plate_numbers.append(t)
+                    taxis_found+=1
             # if we visited everybody, break
             if len(visited) == self.city.n * self.city.m:
-                if self.log:
-                    print("\tNo available taxis at this timepoint!")
                 break
             # if we got available taxis in nearest mode, break
             if (mode == "nearest") and (len(possible_plate_numbers) > 0):
@@ -896,7 +945,7 @@ class Simulation:
                 new_frontier = set()
                 for f in frontier:
                     new_frontier = \
-                        new_frontier.union(self.city.neighbors(f)).difference(set(visited))
+                        new_frontier.union(self.city.N[f[0],f[1]]).difference(set(visited))
                 frontier = list(new_frontier)
                 distance += 1
 
@@ -936,7 +985,7 @@ class Simulation:
 
         self.init_canvas()
 
-        for i, taxi_id in enumerate(self.taxis.keys()):
+        for taxi_id,i in self.taxis.keys.items():#TODO nem biztos, hogy működik
             t = self.taxis[taxi_id]
 
             # plot a circle at the place of the taxi
@@ -1047,14 +1096,14 @@ class Simulation:
             # move available taxis on availability grid
             if t.available:
                 self.city.A[old_x, old_y].remove(taxi_id)
-                self.city.A[t.x, t.y].append(taxi_id)
+                self.city.A[t.x, t.y].add(taxi_id)
 
             # update taxi instance
             if self.log:
                 print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination.queue), "\n",
                       end="")
         except:
-            self.taxis[taxi_id].time_waiting += 1
+            t.time_waiting += 1
 
         self.taxis[taxi_id] = t
 
@@ -1127,7 +1176,7 @@ class Simulation:
             print("timestamp " + str(self.time))
 
         # move every taxi one step towards its destination
-        for i, taxi_id in enumerate(self.taxis.keys()):
+        for taxi_id in self.taxis:
             self.move_taxi(taxi_id)
             t = self.taxis[taxi_id]
 
