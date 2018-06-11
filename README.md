@@ -6,15 +6,15 @@ For debugging and fun purposes, display the map of the simulation with the taxis
 Importing the classes, initializing interactive plotting, importing the timestep button.
 
 ```
-from city_model import *
 %matplotlib notebook
+from city_model import *
 from ipywidgets import Button
 import json
 ```
 
 Configuring the simulation in a JSON file, then displaying the map.
 ```
-config=json.load(open('configs/run1.conf'))
+config=json.load(open('configs/simple.conf'))
 s = Simulation(**config) # create a Simulation instance
 b = Button(description = "Step_time") # create clickable time tick button
 b.on_click(s.step_time) # assign time ticker function to button callback
