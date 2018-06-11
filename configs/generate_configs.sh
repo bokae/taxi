@@ -8,15 +8,15 @@
 # Example usage:
 # ./generate_configs.sh
 
-base="0606_base_big.conf"
+base="0609_base_big.conf"
 alg1="baseline_random_user_random_taxi"
 alg2="baseline_random_user_nearest_taxi"
 alg3="levelling2_random_user_nearest_poorest_taxi_w_waiting_limit"
 
-# generate different taxi to request ratios at N_taxi=200 (corresponding to d = 200 m).
+# generate different taxi to request ratios at N_taxi=2500 (corresponding to d = 200 m).
 
 temp=`cat $base | ./add_param.sh -n num_taxis 2500`
-for lambda in 31 78 156 312 625
+for lambda in 9 28 47 66 94 142
 do
 	for alg in $alg1 $alg2 $alg3
 	do
@@ -27,9 +27,9 @@ done
 
 # generate different average distances between taxis (different densities) with fixed R = 0.5
 
-for t in 100 150 625 2500 5000 10000
+for t in 100 400 1000 2500 5000 
 do
-	lambda=`echo "$(("$t"/16))"`
+	lambda=`echo "$(("$t"/53))"`
 	temp=`cat $base | ./add_param.sh -n num_taxis $t`
 	for alg in $alg1 $alg2 $alg3
 	do
