@@ -134,7 +134,7 @@ class City:
         """
 
         # distance along the x and the y axis
-        d = {k:v for k,v in zip(['x','y'],np.array(destination) - np.array(source))}
+        d = dict(zip(['x','y'],np.array(destination) - np.array(source)))
 
         # create a sequence of "x"-es and "y"-s
         # we are going to shuffle this sequence
@@ -146,7 +146,10 @@ class City:
         path = [source]
         for item in sequence:
                 # we add one step in the right direction based on the last position
-                path.append([np.sign(d[item]) + path[-1][0], 0 + path[-1][1]])
+                path.append([
+                    np.sign(d[item])*int(item=="x") + path[-1][0],
+                    np.sign(d[item])*int(item=="y") + path[-1][1]
+                ])
 
         return path
 
@@ -210,7 +213,9 @@ class City:
         if length is None:
             length=2e5
 
-        temp = map(lambda t:(int(round(t[0],0)),int(round(t[0],0))),[(gauss(self.base_coords[0],self.base_sigma),gauss(self.base_coords[1],self.base_sigma)) for i in range(length)])
+        temp = map(
+                lambda t:(int(round(t[0],0)),int(round(t[1],0))),
+               [(self.base_coords[0]+gauss(0,self.base_sigma),self.base_coords[1]+gauss(0,self.base_sigma)) for i in range(length)])
         temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]),temp)
 
         return deque(temp)
@@ -383,6 +388,7 @@ class Request:
         ]
         if self.taxi_id is not None:
             s += ["\tTaxi assigned ", str(self.taxi_id), ".\n"]
+            s += ["\tDropoff timestamp ", str(self.dropoff_timestamp),".\n"]
         else:
             s += ["\tWaiting."]
 
@@ -1070,11 +1076,12 @@ class Simulation:
         
         Parameters
         ----------
-        
+        plt.ion()
         taxi_id : int
             unique id of taxi that we want to move
         """
         t = self.taxis[taxi_id]
+
         try:
             # move taxi one step forward    
             move = t.next_destination.get_nowait()
@@ -1098,7 +1105,6 @@ class Simulation:
                 self.city.A[old_x, old_y].remove(taxi_id)
                 self.city.A[t.x, t.y].add(taxi_id)
 
-            # update taxi instance
             if self.log:
                 print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination.queue), "\n",
                       end="")
@@ -1106,7 +1112,6 @@ class Simulation:
             t.time_waiting += 1
 
         self.taxis[taxi_id] = t
-
 
     def run_batch(self, run_id):
         """
@@ -1178,6 +1183,7 @@ class Simulation:
         # move every taxi one step towards its destination
         for taxi_id in self.taxis:
             self.move_taxi(taxi_id)
+
             t = self.taxis[taxi_id]
 
             # if a taxi can pick up its passenger, do it
@@ -1185,7 +1191,7 @@ class Simulation:
                 r = self.requests[t.actual_request_executing]
                 if (t.x == r.ox) and (t.y == r.oy):
                     self.pickup_request(t.actual_request_executing)
-            # if a taxi can drop of its passenger, do it
+            # if a taxi can drop off its passenger, do it
             elif taxi_id in self.taxis_to_destination:
                 r = self.requests[t.actual_request_executing]
                 if (t.x == r.dx) and (t.y == r.dy):
