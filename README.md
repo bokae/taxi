@@ -43,7 +43,7 @@ See the manual of `add_param.sh` for further details.
 
 To generate a set of config files for parameter ranges in one script, see the manual of `generate_configs.sh`.
 
-# Batch run
+## Batch run
 
 The file `run.py` initiates runs from config files and writes the results of the simulation to a csv and a json file. Usage is 
 
