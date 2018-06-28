@@ -214,7 +214,7 @@ class City:
 
         temp = map(
                 lambda t:(int(round(t[0],0)),int(round(t[1],0))),
-               [(self.base_coords[0]+gauss(0,self.base_sigma),self.base_coords[1]+gauss(0,self.base_sigma)) for i in range(length)])
+                   [(self.base_coords[0]+gauss(0,self.base_sigma),self.base_coords[1]+gauss(0,self.base_sigma)) for i in range(int(length))])
         temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]),temp)
 
         return deque(temp)
