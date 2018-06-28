@@ -21,7 +21,6 @@ import json
 from random import shuffle, choice, gauss
 import matplotlib.pyplot as plt
 from time import time
-from copy import deepcopy
 from scipy.stats import entropy
 
 # special data types
@@ -366,16 +365,29 @@ class Request:
             self.dx = dcoords[0]
             self.dy = dcoords[1]
 
+            # id
             self.request_id = request_id
 
-            self.request_timestamp = timestamp
-
-            # travel data
-            self.pickup_timestamp = None
-            self.dropoff_timestamp = None
+            # travel info, different time metrics
             self.taxi_id = None
 
-            self.waiting_time = 0
+            self.timestamps = {
+                'request' : timestamp,
+                'pickup' : None,
+                'dropoff' : None
+            }
+
+            self.mode='pending'
+
+            self.time = {
+                'pending' : 0,
+                'waiting' : 0,
+                'serving' : 0
+            }
+
+    def timer(self):
+        if self.mode!='done' and self.mode!='dropped':
+            self.time[self.mode]+=1
 
     def __str__(self):
         s = [
@@ -384,13 +396,20 @@ class Request:
             ".\n\tOrigin ",
             str(self.ox) + "," + str(self.oy) + "\n",
             "\tDestination ",
-            str(self.dx) + "," + str(self.dy) + "\n"
+            str(self.dx) + "," + str(self.dy) + "\n",
+            "\tRequest timestamp ",
+            str(self.timestamps['request']) + "\n"
         ]
         if self.taxi_id is not None:
             s += ["\tTaxi assigned ", str(self.taxi_id), ".\n"]
-            s += ["\tDropoff timestamp ", str(self.dropoff_timestamp),".\n"]
+            s += ["\tWaiting since ", str(self.time['waiting']), ".\n"]
+            if self.time['serving'] != 0:
+                s += ["\tPickup timestamp ", str(self.timestamps['pickup']), ".\n"]
+                s += ["\tServing since ", str(self.time['serving']), ".\n"]
+                if self.timestamps['dropoff'] is not None:
+                    s += ["\tDropoff timestamp ", str(self.timestamps['dropoff']), ".\n"]
         else:
-            s += ["\tWaiting."]
+            s += ["\tPending since ", str(self.time['pending']), ".\n"]
 
         return "".join(s)
 
@@ -443,9 +462,6 @@ class Simulation:
     
     requests_in_progress : list of int
         requests with assigned taxis
-    
-    requests_fulfilled : list of int
-        requests that are closed
     
     requests_dropped : list of int
         unsuccessful requests
@@ -526,8 +542,6 @@ class Simulation:
         self.requests_pending_deque_temporary = deque()
 
         self.requests_in_progress = set()
-        self.requests_fulfilled = set()
-        self.requests_dropped = set()
 
         self.city = City(**config)
         # initializing a bunch of random coordinate pairs for later usage
@@ -684,6 +698,7 @@ class Simulation:
         # remove request from the pending ones, label it as "in progress"
         self.requests_pending.remove(request_id)
         self.requests_in_progress.add(request_id)
+        r.mode = 'waiting'
 
         # update taxi state in taxi storage
         self.taxis[taxi_id] = t
@@ -708,26 +723,26 @@ class Simulation:
         # if there is something in the temporary list
         if len(right)>0:
             # if the temporary list starts with a too old element
-            if self.requests[right[0]].waiting_time >= max_time:
+            if self.requests[right[0]].time['pending'] >= max_time:
                 # clear temporary list
                 right.clear()
                 # prune original list
                 for i in range(len(left)):
-                    if self.requests[left[-i-1]].waiting_time >= max_time:
+                    if self.requests[left[-i-1]].time['pending'] >= max_time:
                         left.pop()
                     else:
                         break
             else:
                 # prune temporary list
                 for i in range(len(right)):
-                    if self.requests[right[-i-1]].waiting_time >= max_time:
+                    if self.requests[right[-i-1]].time['pending'] >= max_time:
                         right.pop()
                     else:
                         break
         else:
             # prune original list
             for i in range(len(left)):
-                if self.requests[left[-i - 1]].waiting_time >= max_time:
+                if self.requests[left[-i - 1]].time['pending'] >= max_time:
                     left.pop()
                 else:
                     break
@@ -847,7 +862,6 @@ class Simulation:
 
         # mark pickup timestamp
         r = self.requests[request_id]
-        r.pickup_timestamp = self.time
         t = self.taxis[r.taxi_id]
 
         self.taxis_to_request.remove(r.taxi_id)
@@ -858,8 +872,8 @@ class Simulation:
         t.with_passenger = True
         t.available = False
 
-        # set request waiting time
-        r.waiting_time = self.time - r.request_timestamp
+        r.timestamps['pickup'] = self.time
+        r.mode='serving'
 
         # update request and taxi instances
         self.requests[request_id] = r
@@ -875,7 +889,8 @@ class Simulation:
 
         # mark dropoff timestamp
         r = self.requests[request_id]
-        r.dropoff_timestamp = self.time
+        r.timestamps['dropoff'] = self.time
+        r.mode = 'done'
         t = self.taxis[r.taxi_id]
 
         # change taxi state to available
@@ -888,10 +903,9 @@ class Simulation:
         self.taxis_to_destination.remove(r.taxi_id)
         self.taxis_available[r.taxi_id] = t
 
-        # udate request lists
+        # update request lists
         self.requests_in_progress.remove(request_id)
         t.requests_completed.add(request_id)
-        self.requests_fulfilled.add(request_id)
 
         # update request and taxi instances
         self.requests[request_id] = r
@@ -1205,6 +1219,10 @@ class Simulation:
         # make matchings
         self.matching_algorithm(mode=self.matching)
 
+        # update timer inside requests
+        for request_id in self.requests:
+            self.requests[request_id].timer()
+
         # step time
         if self.show_plot:
             self.plot_simulation()
@@ -1323,12 +1341,16 @@ class Measurements:
         total = 0
         request_last_waiting_times = []
         request_lengths = []
+        dropped_coords = []
 
         for request_id in self.simulation.requests:
             r = self.simulation.requests[request_id]
-            if r.dropoff_timestamp is not None:
+            if r.mode == 'done':
                 request_completed.append(1)
                 request_lengths.append(float(np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox)))
+            elif r.mode == 'dropped':
+                request_completed.append(0)
+                dropped_coords.append([r.ox,r.oy])
             else:
                 request_completed.append(0)
 
@@ -1336,15 +1358,16 @@ class Measurements:
             # to forget history
             # system-level waiting time peak detection
             # it would not be sensible to include all previous waiting times
-            if (self.simulation.time - r.request_timestamp) < 100:
-                if r.dropoff_timestamp is None:
-                    request_last_waiting_times.append(r.waiting_time)
+            if (self.simulation.time - r.timestamps['request']) < 100:
+                if r.mode == 'pending':
+                    request_last_waiting_times.append(r.time['pending'])
 
         return {
-            "timestamp":self.simulation.time,
-            "request_completed":request_completed,
-            "request_last_waiting_times":request_last_waiting_times,
-            "request_lengths":request_lengths
+            "timestamp" : self.simulation.time,
+            "request_completed" : request_completed,
+            "request_last_waiting_times" : request_last_waiting_times,
+            "request_lengths" : request_lengths,
+            "dropped_coords" : dropped_coords
         }
 
     @staticmethod
@@ -1363,7 +1386,8 @@ class Measurements:
                 metrics['entropy_' + k] = entropy(y)
 
         for k in per_request_metrics:
-            metrics['avg_' + k] = np.nanmean(per_request_metrics[k])
-            metrics['std_' + k] = np.nanstd(per_request_metrics[k])
+            if k[0] != 'd' or k[0] != 't':
+                metrics['avg_' + k] = np.nanmean(per_request_metrics[k])
+                metrics['std_' + k] = np.nanstd(per_request_metrics[k])
 
         return metrics
