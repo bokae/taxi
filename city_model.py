@@ -728,14 +728,14 @@ class Simulation:
                 right.clear()
                 # prune original list
                 for i in range(len(left)):
-                    if self.requests[left[-i-1]].time['pending'] >= max_time:
+                    if i>0 and self.requests[left[-i-1]].time['pending'] >= max_time:
                         left.pop()
                     else:
                         break
             else:
                 # prune temporary list
                 for i in range(len(right)):
-                    if self.requests[right[-i-1]].time['pending'] >= max_time:
+                    if i>0 and self.requests[right[-i-1]].time['pending'] >= max_time:
                         right.pop()
                     else:
                         break
