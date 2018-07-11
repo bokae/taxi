@@ -357,10 +357,10 @@ if __name__ == "__main__":
     base = sys.argv[1]
     rp = ResultParser(base)
 
-    #rp.create_agg_plot('fixed_ratio')
-    #rp.create_agg_plot('fixed_taxis')
-    #rp.create_distr_plot('fixed_ratio')
-    #rp.create_distr_plot('fixed_taxis')
-    #rp.create_timelines('fixed_taxis')
-    #rp.create_timelines('fixed_ratio')
+    rp.create_agg_plot('fixed_ratio')
+    rp.create_agg_plot('fixed_taxis')
+    rp.create_distr_plot('fixed_ratio')
+    rp.create_distr_plot('fixed_taxis')
+    rp.create_timelines('fixed_taxis')
+    rp.create_timelines('fixed_ratio')
 
