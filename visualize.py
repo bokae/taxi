@@ -182,7 +182,7 @@ class ResultParser:
                 ax[int(i / 2), i % 2].ticklabel_format(axis='y',style="sci", scilimits=(-2, 2))
                 ax[int(i / 2), i % 2].grid()
             fig.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center", ncol=len(legend_labels))
-            plt.show()
+            plt.savefig('figs/' + self.base + '_agg_taxi_' + case + '.png')
 
             # request metrics
 
@@ -212,7 +212,7 @@ class ResultParser:
                 if i == 0:
                     legend_handles, legend_labels = ax2[i % 2].get_legend_handles_labels()
             fig2.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center", ncol=len(legend_labels))
-            plt.show()
+            plt.savefig('figs/' + self.base + '_agg_request_' + case + '.png')
 
         else:
             print("No data to plot.")
@@ -259,7 +259,7 @@ class ResultParser:
                 if len(data.index)%2 == 1 and i == len(data.index)-1:
                     ax[int(i / 2), 1].set_axis_off()
             fig.legend(legend_handles, legend_labels, title="algorithm", loc="upper center", ncol=len(legend_labels))
-            plt.show()
+            plt.savefig('figs/'+self.base+'_distr_'+case+'.png')
         else:
             print("No data to plot.")
             return
@@ -311,7 +311,7 @@ class ResultParser:
                     ax_temp.grid()
                 fig.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center",
                            ncol=len(legend_labels))
-                plt.show()
+                plt.savefig('figs/' + self.base + '_timeline_taxi_' + case + '_' + alg + '.png')
 
             # request metrics
             for alg in self.algnames.values():
@@ -344,8 +344,7 @@ class ResultParser:
                         legend_handles, legend_labels = ax2_temp.get_legend_handles_labels()
                 fig2.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center",
                             ncol=len(legend_labels))
-                plt.show()
-
+                plt.savefig('figs/' + self.base + '_timeline_request_' + case + '_' + alg + '.png')
         else:
             print("No data to plot.")
             return
