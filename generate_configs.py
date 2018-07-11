@@ -22,7 +22,7 @@ def avg_length(conf):
     return round(np.mean(templ), 1)
 
 
-if __name__=='main':
+if __name__=='__main__':
     os.chdir('configs')
 
     base = sys.argv[1]
