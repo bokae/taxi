@@ -1,4 +1,7 @@
-#!/home/bokanye/anaconda3/bin/python
+#!/home/bokanyie/anaconda3/bin/python
+
+# Usage:
+# python generate_configs.py 0711_base.conf
 
 import sys
 import json
@@ -58,10 +61,10 @@ R_list = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
 for R in R_list:
     llambda = int(round(N*v*R/l, 0))
-    R_string = ('%.1f' % R).replace('.', '_')
+    R_string = ('%.2f' % R).replace('.', '_')
     if llambda > 0:
         for alg in alg_list:
-            output = base.split('.')[0]+'_fixed_taxis_r_'+R_string+'_alg_'+alg+'.conf'
+            output = base.split('.')[0]+'_fixed_taxis_R_'+R_string+'_alg_'+alg+'.conf'
             temp['request_rate'] = llambda
             temp['matching'] = alg
             f = open(output, 'w')
@@ -85,7 +88,7 @@ for d in d_list:
     temp['request_rate'] = llambda
     for alg in alg_list:
         temp['matching'] = alg
-        output = base.split('.')[0] + '_fixed_ratio_t_' + str(N) + '_alg_' + alg + '.conf'
+        output = base.split('.')[0] + '_fixed_ratio_N_t_' + str(N) + '_alg_' + alg + '.conf'
         temp['request_rate'] = llambda
         temp['matching'] = alg
         f = open(output, 'w')
