@@ -2,7 +2,6 @@
 
 import sys
 import json
-from random import gauss
 import numpy as np
 import os
 from city_model import City
@@ -58,10 +57,11 @@ temp['num_taxis'] = N
 R_list = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
 for R in R_list:
-    llambda = int(round(N*v*R/l,0))
-    if llambda>0:
+    llambda = int(round(N*v*R/l, 0))
+    R_string = ('%.1f' % R).replace('.', '_')
+    if llambda > 0:
         for alg in alg_list:
-            output = base.split('.')[0]+'_fixed_taxis_r_'+str(llambda)+'_alg_'+alg+'.conf'
+            output = base.split('.')[0]+'_fixed_taxis_r_'+R_string+'_alg_'+alg+'.conf'
             temp['request_rate'] = llambda
             temp['matching'] = alg
             f = open(output, 'w')
@@ -74,9 +74,9 @@ for R in R_list:
 # fixed ratio
 # =====================
 
-R=0.5
+R = 0.5
 
-d_list = [50,100,200,300,400,500,750,1000]
+d_list = [50, 100, 200, 300, 400, 500, 750, 1000]
 
 for d in d_list:
     N = int(round(V/d**2))
