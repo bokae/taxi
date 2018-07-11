@@ -1,6 +1,4 @@
-<<<<<<< Updated upstream
-figs/
-=======
 figs/*.png
 .ipynb*
->>>>>>> Stashed changes
+results/*
+configs/*
