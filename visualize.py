@@ -17,7 +17,7 @@ class ResultParser:
         data_structure = {}
 
         for f in os.listdir('configs'):
-            if f[0:len(base)] == base:
+            if f[0:len(base)] == base and f[len(base)] != '.':
                 run_id = f.split('.')[0]
                 data_structure[run_id] = {}  # init empty dict
                 for r in os.listdir('results'):
@@ -90,6 +90,19 @@ class ResultParser:
 
         return res_agg
 
+    def extract_timelines(self, run_id):
+        try:
+            res_agg = pd.Series(
+                pd.read_csv(
+                    self.data_structure[run_id]['agg'], header=0, index_col=0
+                ).to_dict(orient='list')
+            )
+        except KeyError:
+            print("No aggregate csv file for run_id " + run_id + " found in ResultParser with base " + self.base + "!")
+            return
+
+        return res_agg
+
     def extract_distribution(self, run_id, mode='taxi'):
 
         try:
@@ -141,6 +154,7 @@ class ResultParser:
     def create_agg_plot(self, case='fixed_taxis'):
         df = self.prepare_all_data(case)
 
+        # taxi metrics
         if df is not None:
             fig, ax = plt.subplots(num=self.last_figure_index, nrows=2, ncols=2, figsize=(15, 15))
             plt.subplots_adjust(hspace=.3)
@@ -152,9 +166,12 @@ class ResultParser:
                     columns=self.cases[case],
                     values=self.coldict.get(c, c),
                     aggfunc=lambda x: x
-                )
+                ).T
+                # the next line is necessary because of a bug in the config generation whch has already been resolved
+                data = data[data['nearest'].map(lambda x: type(x)==float)]
                 data.plot(
-                    kind='bar',
+                    kind='line',
+                    style='o--',
                     ax=ax[int(i / 2), i % 2],
                     rot=0,
                     legend=False
@@ -167,9 +184,11 @@ class ResultParser:
             fig.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center", ncol=len(legend_labels))
             plt.show()
 
+            # request metrics
+
             fig2, ax2 = plt.subplots(num=self.last_figure_index, nrows=1, ncols=2, figsize=(15, 7.5))
             plt.subplots_adjust(wspace=.3)
-            self.last_figure_index+=1
+            self.last_figure_index += 1
             for i, c in enumerate(self.request_agg_plot_vars):
                 data = pd.pivot_table(
                     df,
@@ -177,9 +196,12 @@ class ResultParser:
                     columns=self.cases[case],
                     values=self.coldict.get(c, c),
                     aggfunc=lambda x: x
-                )
+                ).T
+                # the next line is necessary because of a bug in the config generation whch has already been resolved
+                data = data[data['nearest'].map(lambda x: type(x) == float)]
                 data.plot(
-                    kind='bar',
+                    kind='line',
+                    style='o--',
                     ax=ax2[i % 2],
                     rot=0,
                     legend=False
@@ -206,6 +228,9 @@ class ResultParser:
         df = self.prepare_all_data(case)
         if df is not None:
             data = pd.pivot_table(df, index=var, columns='matching', values=col, aggfunc=lambda x: x)
+
+            # the next line is necessary because of a bug in the config generation whch has already been resolved
+            data = data[data['nearest'].map(lambda x: len(x) > 0)]
 
             data['min'] = data.apply(lambda row: min([min(row[c]) for c in ['nearest', 'poorest', 'random']]), axis=1)
             data['max'] = data.apply(lambda row: max([max(row[c]) for c in ['nearest', 'poorest', 'random']]), axis=1)
@@ -239,12 +264,103 @@ class ResultParser:
             print("No data to plot.")
             return
 
+    def create_timelines(self, case='fixed_taxis'):
+        try:
+            var = self.cases[case]
+        except KeyError:
+            print("No such case (" + case + ") is known!")
+            return
+
+        l = [[
+            self.extract_timelines(run_id),
+            self.extract_conf(run_id)] for run_id in self.data_structure if case in run_id]
+        l = list(map(pd.concat, filter(lambda x: np.all([elem is not None for elem in x]), l)))
+
+
+        for elem in l:
+            elem['R'] = round(elem['request_rate'] * elem['avg_request_lengths'][-1] / elem['num_taxis'], 1)
+            elem['d'] = round(np.sqrt(elem['n'] * elem['m'] * 1e4 / elem['num_taxis']), 0)
+
+        df = pd.concat(l, axis=1).T
+        df['matching'] = df['matching'].map(self.algnames)
+        df.columns = list(map(lambda x: self.coldict.get(x, x), df.columns))
+
+        # taxi metrics
+        if df is not None:
+            for alg in self.algnames.values():
+                fig, ax = plt.subplots(num=self.last_figure_index, nrows=2, ncols=2, figsize=(15, 15))
+                plt.subplots_adjust(hspace=.3)
+                self.last_figure_index += 1
+                for i, c in enumerate(self.taxi_agg_plot_vars):
+                    data = pd.pivot_table(
+                        df,
+                        index='matching',
+                        columns=self.cases[case],
+                        values=self.coldict.get(c, c),
+                        aggfunc=lambda x: x
+                    ).T
+
+                    ax_temp = ax[int(i / 2), i % 2]
+
+                    for R in data.index:
+                        ax_temp.plot(data[alg][R], label=str(R))
+                    if i == 0:
+                        legend_handles, legend_labels = ax_temp.get_legend_handles_labels()
+                    ax_temp.set_ylabel(self.coldict.get(c, c))
+                    ax_temp.ticklabel_format(axis='y', style="sci", scilimits=(-2, 2))
+                    ax_temp.grid()
+                fig.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center",
+                           ncol=len(legend_labels))
+                plt.show()
+
+            # request metrics
+            for alg in self.algnames.values():
+
+                fig2, ax2 = plt.subplots(num=self.last_figure_index, nrows=1, ncols=2, figsize=(15, 7.5))
+                plt.subplots_adjust(wspace=.3)
+                self.last_figure_index += 1
+
+                for i, c in enumerate(self.request_agg_plot_vars):
+
+                    data = pd.pivot_table(
+                        df,
+                        index='matching',
+                        columns=self.cases[case],
+                        values=self.coldict.get(c, c),
+                        aggfunc=lambda x: x
+                    ).T
+
+                    print(data)
+
+                    ax2_temp = ax2[i % 2]
+
+                    for R in data.index:
+                        ax2_temp.plot(data[alg][R], label=str(R))
+
+                    ax2_temp.set_ylabel(self.coldict.get(c, c))
+                    ax2_temp.ticklabel_format(style="sci", axis='y', scilimits=(-2, 2))
+                    ax2_temp.grid()
+                    if i == 0:
+                        legend_handles, legend_labels = ax2_temp.get_legend_handles_labels()
+                fig2.legend(legend_handles, legend_labels, title=self.cases[case], loc="upper center",
+                            ncol=len(legend_labels))
+                plt.show()
+
+        else:
+            print("No data to plot.")
+            return
+
+    def create_map(self, case='fixed_taxis'):
+        
 
 if __name__ == "__main__":
     base = sys.argv[1]
     rp = ResultParser(base)
 
-    rp.create_agg_plot('fixed_ratio')
-    rp.create_agg_plot('fixed_taxis')
-    rp.create_distr_plot('fixed_ratio')
-    rp.create_distr_plot('fixed_taxis')
+    #rp.create_agg_plot('fixed_ratio')
+    #rp.create_agg_plot('fixed_taxis')
+    #rp.create_distr_plot('fixed_ratio')
+    #rp.create_distr_plot('fixed_taxis')
+    #rp.create_timelines('fixed_taxis')
+    #rp.create_timelines('fixed_ratio')
+
