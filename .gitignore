@@ -1,4 +1,2 @@
 figs/*.png
 .ipynb*
-results/*
-configs/*
