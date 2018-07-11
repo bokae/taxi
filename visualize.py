@@ -351,7 +351,7 @@ class ResultParser:
             return
 
     def create_map(self, case='fixed_taxis'):
-        
+        return
 
 if __name__ == "__main__":
     base = sys.argv[1]
