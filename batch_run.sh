@@ -2,13 +2,11 @@
 
 # This script does a batch run on the config file names
 # listed after the ls command in the for loop.
-# usage: ./batch_run.sh
+# usage: ./batch_run.sh basename
 
-for file in `ls configs/0604_base_*.conf`
+for file in `ls configs/$1_*.conf`
 do
 	conf=`echo $file | cut -d "/" -f2 | sed 's/.conf//g'`
-	echo "Running "$conf"..."
-	./run.py $conf
-	echo "Done."
-	echo
+	echo "Submitting "$conf"..."
+	sbatch ./run.py $conf
 done
