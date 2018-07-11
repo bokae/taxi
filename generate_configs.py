@@ -47,8 +47,8 @@ if __name__=='main':
     v = 1
     # time unit in seconds
     tu = scale/10*v
-    # two weeks in simulation units, supposing 8 working hours/day
-    simulation_time = round(0.01*10*8*3600/tu,0)*100
+    # three days in simulation units, supposing 8 working hours/day
+    simulation_time = round(0.01*3*8*3600/tu,0)*100
     temp['max_time'] = simulation_time
     # avg path lengths in the system
     l = avg_length(temp)
