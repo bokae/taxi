@@ -42,7 +42,13 @@ scale = 100
 # system volume
 V = temp['n']*temp['m']*scale**2
 # velocity of taxis in distance unt per time unit
+# should correspond to 36 km/h!!!
 v = 1
+# time unit in seconds
+tu = scale/10*v
+# two weeks in simulation units, supposing 8 working hours/day
+simulation_time = round(0.01*10*8*3600/tu,0)*100
+temp['max_time'] = simulation_time
 # avg path lengths in the system
 l = avg_length(temp)
 
@@ -57,7 +63,7 @@ N = int(round(V/d**2))
 temp['num_taxis'] = N
 
 # different ratios
-R_list = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+R_list = [0.01, 0.02] + list(np.linspace(0.05, 1, 0.05))
 
 for R in R_list:
     llambda = int(round(N*v*R/l, 0))
@@ -68,7 +74,7 @@ for R in R_list:
             temp['request_rate'] = llambda
             temp['matching'] = alg
             f = open(output, 'w')
-            f.write(json.dumps(temp,indent=4,separators=(',', ': ')))
+            f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
             f.write('\n')
             f.close()
 
@@ -79,7 +85,7 @@ for R in R_list:
 
 R = 0.5
 
-d_list = [50, 100, 200, 300, 400, 500, 750, 1000]
+d_list = np.linspace(50, 800, 50)
 
 for d in d_list:
     N = int(round(V/d**2))
