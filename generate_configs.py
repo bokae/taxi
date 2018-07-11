@@ -9,8 +9,6 @@ import numpy as np
 import os
 from city_model import City
 
-os.chdir('configs')
-
 
 def avg_length(conf):
 
@@ -24,83 +22,93 @@ def avg_length(conf):
     return round(np.mean(templ), 1)
 
 
-base = sys.argv[1]
+if __name__=='main':
+    os.chdir('configs')
 
-alg1 = "baseline_random_user_random_taxi"
-alg2 = "baseline_random_user_nearest_taxi"
-alg3 = "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit"
-alg_list = [alg1, alg2, alg3]
+    base = sys.argv[1]
 
-temp = json.load(open(base))
+    alg1 = "baseline_random_user_random_taxi"
+    alg2 = "baseline_random_user_nearest_taxi"
+    alg3 = "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit"
+    alg_list = [alg1, alg2, alg3]
 
-# =====================
-# global parameters
-# =====================
+    temp = json.load(open(base))
 
-# 1 distance unit in meters
-scale = 100
-# system volume
-V = temp['n']*temp['m']*scale**2
-# velocity of taxis in distance unt per time unit
-# should correspond to 36 km/h!!!
-v = 1
-# time unit in seconds
-tu = scale/10*v
-# two weeks in simulation units, supposing 8 working hours/day
-simulation_time = round(0.01*10*8*3600/tu,0)*100
-temp['max_time'] = simulation_time
-# avg path lengths in the system
-l = avg_length(temp)
+    # =====================
+    # global parameters
+    # =====================
 
-# =====================
-# fixed number of taxis
-# =====================
+    # 1 distance unit in meters
+    scale = 100
+    # system volume
+    V = temp['n']*temp['m']*scale**2
+    # velocity of taxis in distance unt per time unit
+    # should correspond to 36 km/h!!!
+    v = 1
+    # time unit in seconds
+    tu = scale/10*v
+    # two weeks in simulation units, supposing 8 working hours/day
+    simulation_time = round(0.01*10*8*3600/tu,0)*100
+    temp['max_time'] = simulation_time
+    # avg path lengths in the system
+    l = avg_length(temp)
+    temp['avg_request_lengths'] = l
 
-# d = \sqrt(V/Nt)
-# fixed d=200m
-d = 200
-N = int(round(V/d**2))
-temp['num_taxis'] = N
+    # =====================
+    # fixed number of taxis
+    # =====================
 
-# different ratios
-R_list = [0.01, 0.02] + list(np.linspace(0.05, 1, 0.05))
+    # d = \sqrt(V/Nt)
+    # fixed d=200m
+    d = 200
+    N = int(round(V/d**2))
+    temp['num_taxis'] = N
 
-for R in R_list:
-    llambda = int(round(N*v*R/l, 0))
-    R_string = ('%.2f' % R).replace('.', '_')
-    if llambda > 0:
+    # different ratios
+    R_list = [0.02] + list(np.linspace(0, 1, 21))[1:]
+    print('R_list: ', R_list)
+
+    for R in R_list:
+        llambda = int(round(N*v*R/l, 0))
+        R_string = ('%.2f' % R).replace('.', '_')
+        if llambda > 0:
+            for alg in alg_list:
+                output = base.split('.')[0]+'_fixed_taxis_R_'+R_string+'_alg_'+alg+'.conf'
+                temp['request_rate'] = llambda
+                temp['matching'] = alg
+                temp['R'] = round(R, 2)
+                temp['d'] = 200
+                f = open(output, 'w')
+                f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
+                f.write('\n')
+                f.close()
+
+
+    # =====================
+    # fixed ratio
+    # =====================
+
+    R = 0.5
+
+    d_list = list(np.linspace(50, 400, 8))
+    print('d_list: ',d_list)
+
+    for d in d_list:
+        N = int(round(V/d**2))
+        llambda = int(round(N * v * R / l, 0))
+        temp['num_taxis'] = N
+        temp['request_rate'] = llambda
         for alg in alg_list:
-            output = base.split('.')[0]+'_fixed_taxis_R_'+R_string+'_alg_'+alg+'.conf'
+            temp['matching'] = alg
+            output = base.split('.')[0] + '_fixed_ratio_N_t_' + str(N) + '_alg_' + alg + '.conf'
             temp['request_rate'] = llambda
             temp['matching'] = alg
+            temp['R'] = 0.5
+            temp['d'] = round(d,0)
             f = open(output, 'w')
             f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
             f.write('\n')
             f.close()
 
 
-# =====================
-# fixed ratio
-# =====================
-
-R = 0.5
-
-d_list = np.linspace(50, 800, 50)
-
-for d in d_list:
-    N = int(round(V/d**2))
-    llambda = int(round(N * v * R / l, 0))
-    temp['num_taxis'] = N
-    temp['request_rate'] = llambda
-    for alg in alg_list:
-        temp['matching'] = alg
-        output = base.split('.')[0] + '_fixed_ratio_N_t_' + str(N) + '_alg_' + alg + '.conf'
-        temp['request_rate'] = llambda
-        temp['matching'] = alg
-        f = open(output, 'w')
-        f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
-        f.write('\n')
-        f.close()
-
-
-os.chdir('..')
+    os.chdir('..')
