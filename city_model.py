@@ -1171,11 +1171,15 @@ class Simulation:
             time1=time2
 
         # dumping batch results
-        pd.DataFrame.from_dict(results).to_csv(data_path + '/run_' + run_id + '_aggregates.csv')
+        f = open(data_path + '/run_' + run_id + '_aggregates.csv','a')
+        pd.DataFrame.from_dict(results).to_csv(f)
+        f.write('\n')
+        f.close()
 
         # dumping per taxi metrics out
-        f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'w')
+        f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
         json.dump(ptm,f)
+        f.write('\n')
         f.close()
 
         # dumping per request metrics out
