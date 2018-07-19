@@ -1179,8 +1179,9 @@ class Simulation:
         f.close()
 
         # dumping per request metrics out
-        f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'w')
+        f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
         json.dump(prm, f)
+        f.write('\n')
         f.close()
 
         print("Done.\n")
