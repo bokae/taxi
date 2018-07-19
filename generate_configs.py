@@ -50,6 +50,7 @@ if __name__=='__main__':
     # three days in simulation units, supposing 8 working hours/day
     simulation_time = round(0.01*3*8*3600/tu,0)*100
     temp['max_time'] = simulation_time
+    temp['batch_size'] = int(simulation_time/15)
     # avg path lengths in the system
     l = avg_length(temp)
     temp['avg_request_lengths'] = l

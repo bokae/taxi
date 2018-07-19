@@ -102,6 +102,9 @@ class ResultParser:
         try:
             res_agg = pd.read_csv(self.data_structure[run_id]['agg'], header=0, index_col=0)
             res_agg = res_agg.loc[res_agg.shape[0]-1]
+            if 'fixed_ratio' in run_id:
+                conf = self.extract_conf(run_id)
+                res_agg['entropy_ratio_online'] = res_agg['entropy_ratio_online']/np.log(conf['num_taxis'])
         except KeyError:
             print("No aggregate csv file for run_id " + run_id + " found in ResultParser with base " + self.base + "!")
             return
