@@ -17,207 +17,19 @@ Created on Mon Nov 20 13:00:15 2017
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
+from shapely.geometry import Point
 import json
-from random import shuffle, choice, gauss
+from random import choice
 import matplotlib.pyplot as plt
 from time import time
-from scipy.stats import entropy
 
 # special data types
 from collections import deque
 from queue import Queue
 from randomdict import RandomDict
 
-
-class City:
-    """
-    Represents a grid on which taxis are moving.
-    """
-
-    def __init__(self, **config):
-        """      
-        Parameters
-        ----------
-        
-        n : int
-            width of grid
-        
-        m : int
-            height of grid
-
-        base_coords : [int,int]
-            grid coordinates of the taxi base
-            
-        base_sigma : float
-            standard deviation of the 2D Gauss distribution
-            around the taxi base
-
-        Attributes
-        ----------
-        A : np.array of lists
-            placeholder to store list of available taxi_ids at their actual
-            positions
-
-        n : int
-            width of grid
-        
-        m : int
-            height of grid
-
-        base_coords: [int,int]
-            coordinates of the taxi base
-            
-        base_sigma: float
-            standard deviation of the 2D Gauss distribution
-            around the taxi base
-                    
-        
-        
-        """
-        if ("n" in config) and ("m" in config):
-            self.n = config["n"]  # number of pixels in x direction
-            self.m = config["m"]  # number of pixels in y direction
-
-            # array that stores taxi_id of available taxis at the
-            # specific position on the grid
-            # we initialize this array with empy lists
-            self.A = np.empty((self.n, self.m), dtype=set)
-            for i in range(self.n):
-                for j in range(self.m):
-                    self.A[i, j] = set()
-
-            self.N = np.empty((self.n, self.m), dtype=set)
-            for i in range(self.n):
-                for j in range(self.m):
-                    self.N[i, j] = self.neighbors((i, j))
-
-            self.base_coords = [int(np.floor(self.n / 2) - 1), int(np.floor(self.m / 2) - 1)]
-            #            print(self.base_coords)
-            self.base_sigma = config["base_sigma"]
-
-    def measure_distance(self, source, destination):
-        """
-        Measure distance on the grid between two points.
-        
-        Returns
-        -------
-        Source coordinates are marked by *s*,
-        destination coordinates are marked by *d*.
-        
-        The distance is the following integer:
-        $$|x_s-x_d|+|y_s-y_d|$$
-        """
-
-        return np.dot(np.abs(np.array(destination) - np.array(source)), [1, 1])
-
-    def create_path(self, source, destination):
-        """
-        Choose a random shortest path between source and destination.
-        
-        Parameters
-        ----------
-        
-        source : [int,int]
-            grid coordinates of the source
-            
-        destination : [int,int]
-            grid coordinates of the destination
-        
-        
-        Returns
-        -------
-        
-        path : list of coordinate tuples
-            coordinate list of a random path between source and destinaton
-            
-        """
-
-        # distance along the x and the y axis
-        d = dict(zip(['x','y'],np.array(destination) - np.array(source)))
-
-        # create a sequence of "x"-es and "y"-s
-        # we are going to shuffle this sequence
-        # to get a random order of "x" and "y" direction steps
-        sequence = ['x'] * int(np.abs(d['x'])) + ['y'] * int(np.abs(d['y']))
-        shuffle(sequence)
-
-        # source is included in the path
-        path = [source]
-        for item in sequence:
-                # we add one step in the right direction based on the last position
-                path.append([
-                    np.sign(d[item])*int(item=="x") + path[-1][0],
-                    np.sign(d[item])*int(item=="y") + path[-1][1]
-                ])
-
-        return path
-
-    def neighbors(self, coordinates):
-        """
-        Calculate the neighbors of a coordinate.
-        On the edges of the simulation grid, there are no neighbors.
-        (E.g. there are only 2 neighbors in the corners.)
-
-        Parameters
-        ----------
-        
-        coordinates : [int,int]
-            input grid coordinate
-            
-        Returns
-        -------
-        
-        ns : list of coordinate tuples
-            list containing the coordinates of the neighbors        
-        """
-
-        ns = [(coordinates[0] + dx, coordinates[1] + dy) for dx, dy in [(1, 0), (0, 1), (-1, 0), (0, -1)]]
-        ns = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]),ns)
-
-        return set(ns)
-
-
-    def create_request_coords(self, mean=None):
-        """
-        Creates random request coords based on the base_coords and the
-        base_sigma according to a 2D Gauss.
-        
-        Returns
-        -------
-        
-        x,y
-            coordinate tuple
-        """
-
-        done = False
-        if mean is None:
-            mean = self.base_coords
-
-        cov = np.array([[self.base_sigma ** 2, 0], [0, self.base_sigma ** 2]])
-
-        while not done:
-
-            x, y = np.random.multivariate_normal(mean, cov)
-
-            x = int(np.floor(x))
-            y = int(np.floor(y))
-
-            if (x >= 0) and (x < self.n) and (y >= 0) and (y < self.m):
-                done = True
-
-        return x, y
-
-    def generate_coords(self,length=None):
-
-        if length is None:
-            length=2e5
-
-        temp = map(
-                lambda t:(int(round(t[0],0)),int(round(t[1],0))),
-                   [(self.base_coords[0]+gauss(0,self.base_sigma),self.base_coords[1]+gauss(0,self.base_sigma)) for i in range(int(length))])
-        temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]),temp)
-
-        return deque(temp)
+from geometry import City
 
 
 class Taxi:
@@ -312,6 +124,14 @@ class Taxi:
             s += ["\tCarrying the passenger of request " + str(self.actual_request_executing) + ".\n"]
 
         return "".join(s)
+
+    def __iter__(self):
+        """
+        This method allows conversion to dict, but we could easily substitute the whole class
+        with a dictionary.
+        """
+        for attr, value in self.__dict__.items():
+            yield attr, value
 
 
 class Request:
@@ -412,6 +232,10 @@ class Request:
             s += ["\tPending since ", str(self.time['pending']), ".\n"]
 
         return "".join(s)
+
+    def __iter__(self):
+        for attr, value in self.__dict__.iteritems():
+            yield attr, value
 
 
 class Simulation:
@@ -524,8 +348,9 @@ class Simulation:
         else:
             self.num_iter = None
 
-        self.taxis = RandomDict()
         self.latest_taxi_id = 0
+
+        self.taxis = RandomDict()
 
         self.taxis_available = RandomDict()
         self.taxis_to_request = set()
@@ -544,6 +369,8 @@ class Simulation:
         self.requests_in_progress = set()
 
         self.city = City(**config)
+
+        # TODO rewrite!!!! separating origin and destination, and using new geometry file
         # initializing a bunch of random coordinate pairs for later usage
         self.coordstack = self.city.generate_coords(length=self.max_time*self.request_rate*4)
 
@@ -558,6 +385,14 @@ class Simulation:
         # initializing simulation with taxis
         for t in range(self.num_taxis):
             self.add_taxi()
+
+        self.taxi_df = pd.DataFrame.from_dict([dict(v) for k, v in self.taxis.items()])
+        self.taxi_df.set_index('taxi_id',inplace=True)
+
+        geometry = [Point(xy) for xy in zip(self.taxi_df.x, self.taxi_df.y)]
+
+        self.taxi_df = gpd.GeoDataFrame(self.taxi_df, geometry=geometry)
+        print(self.taxi_df.head())
 
         if self.show_plot:
             #         plotting variables
@@ -601,6 +436,7 @@ class Simulation:
         # add to taxi storage
         self.taxis[self.latest_taxi_id] = tx
         # add to available taxi storage
+        # TODO faster indexing?
         self.city.A[self.city.base_coords[0], self.city.base_coords[1]].add(self.latest_taxi_id)  # add to available taxi matrix
         self.taxis_available[self.latest_taxi_id] = tx
 
@@ -616,18 +452,8 @@ class Simulation:
         # the random coordinates are pre-stored in a deque for faster access
         # if there are no more pregenerated coordinates in the deque, we generate some more
         # origin
-        try:
-            ox, oy = self.coordstack.pop()
-        except IndexError:
-            self.coordstack.extend(self.city.generate_coords(length=self.max_time*self.request_rate*4))
-            ox, oy = self.coordstack.pop()
 
-        # destination
-        try:
-            dx, dy = self.coordstack.pop()
-        except IndexError:
-            self.coordstack.extend(self.city.generate_coords(length=self.max_time*self.request_rate*4))
-            dx, dy = self.coordstack.pop()
+        # TODO insert request coords from geometry
 
         r = Request([ox, oy], [dx, dy], self.latest_request_id, self.time)
 
@@ -643,13 +469,15 @@ class Simulation:
         """
         This function sends the taxi to the base rom wherever it is.
         """
-        # actual coordinates
-        acoords = [self.taxis[taxi_id].x, self.taxis[taxi_id].y]
-        # path between actual coordinates and destination
-        path = self.city.create_path(acoords, bcoords)
 
         # fetch object
         t = self.taxis[taxi_id]
+
+        # actual coordinates
+        acoords = [t.x, t.y]
+        # path between actual coordinates and destination
+        path = self.city.create_path(acoords, bcoords)
+
         # erase path memory
         t.with_passenger = False
         t.to_request = False
@@ -714,43 +542,46 @@ class Simulation:
 
         """
 
-        # making local_variables
-        right = self.requests_pending_deque_temporary
-        left = self.requests_pending_deque
-        max_time = self.max_request_waiting_time
+        if self.time>=self.max_request_waiting_time:
+        # do the check only if it already makes sense
+
+            # making local_variables
+            right = self.requests_pending_deque_temporary
+            left = self.requests_pending_deque
+            max_time = self.max_request_waiting_time
 
 
-        # if there is something in the temporary list
-        if len(right)>0:
-            # if the temporary list starts with a too old element
-            if self.requests[right[0]].time['pending'] >= max_time:
-                # clear temporary list
-                right.clear()
+            # if there is something in the temporary list
+            if len(right)>0:
+                # if the temporary list starts with a too old element
+                if self.requests[right[0]].time['pending'] >= max_time:
+                    # clear temporary list
+                    right.clear()
+                    # prune original list
+                    for i in range(len(left)):
+                        if i>0 and self.requests[left[-i-1]].time['pending'] >= max_time:
+                            left.pop()
+                        else:
+                            break
+                else:
+                    # prune temporary list
+                    for i in range(len(right)):
+                        if i>0 and self.requests[right[-i-1]].time['pending'] >= max_time:
+                            right.pop()
+                        else:
+                            break
+            else:
                 # prune original list
                 for i in range(len(left)):
-                    if i>0 and self.requests[left[-i-1]].time['pending'] >= max_time:
+                    if i>0 and self.requests[left[-i - 1]].time['pending'] >= max_time:
                         left.pop()
                     else:
                         break
-            else:
-                # prune temporary list
-                for i in range(len(right)):
-                    if i>0 and self.requests[right[-i-1]].time['pending'] >= max_time:
-                        right.pop()
-                    else:
-                        break
-        else:
-            # prune original list
-            for i in range(len(left)):
-                if i>0 and self.requests[left[-i - 1]].time['pending'] >= max_time:
-                    left.pop()
-                else:
-                    break
 
-        left.extend(right)
-        self.requests_pending_deque_temporary.clear()
-        self.requests_pending_deque = left
-        self.requests_pending=set(left)
+            left.extend(right)
+            self.requests_pending_deque_temporary.clear()
+            self.requests_pending_deque = left
+            self.requests_pending=set(left)
 
     def matching_algorithm(self, mode="baseline"):
         """
@@ -963,6 +794,7 @@ class Simulation:
             # if not, move on to next depth
             else:
                 new_frontier = set()
+                # TODO lassú! lehetne jobban is csinálni
                 for f in frontier:
                     new_frontier = \
                         new_frontier.union(self.city.N[f[0],f[1]]).difference(set(visited))
@@ -1387,8 +1219,6 @@ class Measurements:
             elif k[0:5]=='ratio':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-                y,x = np.histogram(per_taxi_metrics[k],bins=1000,density=True)
-                metrics['entropy_' + k] = entropy(y)
 
         for k in per_request_metrics:
             if k[0] != 'd' or k[0] != 't':
