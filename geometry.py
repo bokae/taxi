@@ -46,6 +46,8 @@ class City:
         self.n = config["n"]  # number of pixels in x direction
         self.m = config["m"]  # number of pixels in y direction
 
+        self.base_coords = config["base_coords"]
+
         # array that stores taxi_id of available taxis at the
         # specific position on the grid
         # we initialize this array with empy lists
