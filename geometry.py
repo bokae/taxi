@@ -67,6 +67,7 @@ class City:
 
         self.request_p = deque([])
 
+
         # origins
         self.request_origin_distributions = config['request_origin_distributions']
         self.request_origin_coordstacks = \
