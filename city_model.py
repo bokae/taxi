@@ -150,20 +150,8 @@ class Request:
     request_id : int
         unique id of request
     
-    request_timestamp : int
-        timestamp of request
-        
-    pickup_timestamp : int
-        timestamp of taxi arrival
-        
-    dropoff_timestamp : int
-        timestamp of request completed
-    
     taxi_id : int
         id of taxi that serves the request
-    
-    waiting_time : int
-        how much time the user had to wait until picked up
     """
 
     def __init__(self, ocoords=None, dcoords=None, request_id=None, timestamp=None):
@@ -173,7 +161,7 @@ class Request:
         if (ocoords is None) or (dcoords is None):
             print("A request has to have a well-defined origin and destination.")
         elif request_id is None:
-            print("Please indentify each request uniquely.")
+            print("Please identify each request uniquely.")
         elif timestamp is None:
             print("Please give a timestamp for the request!")
         else:
@@ -192,22 +180,22 @@ class Request:
             self.taxi_id = None
 
             self.timestamps = {
-                'request' : timestamp,
-                'pickup' : None,
-                'dropoff' : None
+                'request': timestamp,
+                'pickup': None,
+                'dropoff': None
             }
 
-            self.mode='pending'
+            self.mode = 'pending'
 
             self.time = {
-                'pending' : 0,
-                'waiting' : 0,
-                'serving' : 0
+                'pending': 0,
+                'waiting': 0,
+                'serving': 0
             }
 
     def timer(self):
-        if self.mode!='done' and self.mode!='dropped':
-            self.time[self.mode]+=1
+        if self.mode != 'done' and self.mode != 'dropped':
+            self.time[self.mode] += 1
 
     def __str__(self):
         s = [
@@ -338,10 +326,11 @@ class Simulation:
         if "max_time" in config:
             self.max_time = config["max_time"]
 
+        # this is done now by the config generator in theory
         if "max_request_waiting_time" in config:
             self.max_request_waiting_time = config["max_request_waiting_time"]
         else:
-            self.max_request_waiting_time = 10000 #TODO
+            self.max_request_waiting_time = 10000
 
         if ("batch_size" in config) and ("max_time" in config):
             self.num_iter = int(np.ceil(self.max_time/self.batch_size))
@@ -370,10 +359,6 @@ class Simulation:
 
         self.city = City(**config)
 
-        # TODO rewrite!!!! separating origin and destination, and using new geometry file
-        # initializing a bunch of random coordinate pairs for later usage
-        self.coordstack = self.city.generate_coords(length=self.max_time*self.request_rate*4)
-
         if "hard_limit" in config:
             self.hard_limit = config["hard_limit"]
         else:
@@ -387,7 +372,7 @@ class Simulation:
             self.add_taxi()
 
         self.taxi_df = pd.DataFrame.from_dict([dict(v) for k, v in self.taxis.items()])
-        self.taxi_df.set_index('taxi_id',inplace=True)
+        self.taxi_df.set_index('taxi_id', inplace=True)
 
         geometry = [Point(xy) for xy in zip(self.taxi_df.x, self.taxi_df.y)]
 
@@ -437,7 +422,8 @@ class Simulation:
         self.taxis[self.latest_taxi_id] = tx
         # add to available taxi storage
         # TODO faster indexing?
-        self.city.A[self.city.base_coords[0], self.city.base_coords[1]].add(self.latest_taxi_id)  # add to available taxi matrix
+        # add to available taxi matrix
+        self.city.A[self.city.base_coords[0], self.city.base_coords[1]].add(self.latest_taxi_id)
         self.taxis_available[self.latest_taxi_id] = tx
 
         # increase id
@@ -453,7 +439,7 @@ class Simulation:
         # if there are no more pregenerated coordinates in the deque, we generate some more
         # origin
 
-        # TODO insert request coords from geometry
+        ox, oy, dx, dy = self.city.create_one_request_coord()
 
         r = Request([ox, oy], [dx, dy], self.latest_request_id, self.time)
 
@@ -490,7 +476,7 @@ class Simulation:
             t.next_destination.put(p)
 
         # put object back to its place
-        self.taxis[taxi_id]=t
+        self.taxis[taxi_id] = t
 
     def assign_request(self, request_id, taxi_id):
         """
@@ -519,7 +505,7 @@ class Simulation:
 
         # create new path: to user, then to destination
         path = self.city.create_path([t.x, t.y], [r.ox, r.oy]) + \
-           self.city.create_path([r.ox, r.oy], [r.dx, r.dy])[1:]
+            self.city.create_path([r.ox, r.oy], [r.dx, r.dy])[1:]
         for p in path:
             t.next_destination.put(p)
 
@@ -542,38 +528,37 @@ class Simulation:
 
         """
 
-        if self.time>=self.max_request_waiting_time:
         # do the check only if it already makes sense
+        if self.time >= self.max_request_waiting_time:
 
             # making local_variables
             right = self.requests_pending_deque_temporary
             left = self.requests_pending_deque
             max_time = self.max_request_waiting_time
 
-
             # if there is something in the temporary list
-            if len(right)>0:
+            if len(right) > 0:
                 # if the temporary list starts with a too old element
                 if self.requests[right[0]].time['pending'] >= max_time:
                     # clear temporary list
                     right.clear()
                     # prune original list
                     for i in range(len(left)):
-                        if i>0 and self.requests[left[-i-1]].time['pending'] >= max_time:
+                        if i > 0 and self.requests[left[-i-1]].time['pending'] >= max_time:
                             left.pop()
                         else:
                             break
                 else:
                     # prune temporary list
                     for i in range(len(right)):
-                        if i>0 and self.requests[right[-i-1]].time['pending'] >= max_time:
+                        if i > 0 and self.requests[right[-i-1]].time['pending'] >= max_time:
                             right.pop()
                         else:
                             break
             else:
                 # prune original list
                 for i in range(len(left)):
-                    if i>0 and self.requests[left[-i - 1]].time['pending'] >= max_time:
+                    if i > 0 and self.requests[left[-i - 1]].time['pending'] >= max_time:
                         left.pop()
                     else:
                         break
@@ -581,7 +566,7 @@ class Simulation:
             left.extend(right)
             self.requests_pending_deque_temporary.clear()
             self.requests_pending_deque = left
-            self.requests_pending=set(left)
+            self.requests_pending = set(left)
 
     def matching_algorithm(self, mode="baseline"):
         """
@@ -598,7 +583,7 @@ class Simulation:
                 * levelling : based on different measures, we want to equalize payment for taxi drivers
         """
 
-        if len(self.requests_pending)==0:
+        if len(self.requests_pending) == 0:
             if self.log:
                 print("No pending requests.")
             return
@@ -663,7 +648,9 @@ class Simulation:
                 r = self.requests[request_id]
 
                 # find nearest vehicles in a radius
-                possible_taxi_ids = self.find_nearest_available_taxis([r.ox,r.oy],mode="circle",radius=self.hard_limit)
+                possible_taxi_ids = self.find_nearest_available_taxis([r.ox, r.oy],
+                                                                      mode="circle",
+                                                                      radius=self.hard_limit)
 
                 hit = 0
                 for t in ta_list:
@@ -671,7 +658,7 @@ class Simulation:
                         # on first hit
                         # make assignment
                         self.assign_request(request_id, t)
-                        hit=1
+                        hit = 1
                         break
                 if not hit:
                     self.requests_pending_deque_temporary.appendleft(request_id)
@@ -704,7 +691,7 @@ class Simulation:
         t.available = False
 
         r.timestamps['pickup'] = self.time
-        r.mode='serving'
+        r.mode = 'serving'
 
         # update request and taxi instances
         self.requests[request_id] = r
@@ -774,14 +761,14 @@ class Simulation:
         possible_plate_numbers = []
 
         distance = 0
-        taxis_found=0
-        while distance <= self.hard_limit and taxis_found<=len(self.taxis_available):
+        taxis_found = 0
+        while distance <= self.hard_limit and taxis_found <= len(self.taxis_available):
             # check available taxis in given nodes
             for x, y in list(frontier):
                 visited.append((x, y))  # mark the coordinate as visited
                 for t in self.city.A[x, y]:  # get all available taxis there
                     possible_plate_numbers.append(t)
-                    taxis_found+=1
+                    taxis_found += 1
             # if we visited everybody, break
             if len(visited) == self.city.n * self.city.m:
                 break
@@ -797,13 +784,13 @@ class Simulation:
                 # TODO lassú! lehetne jobban is csinálni
                 for f in frontier:
                     new_frontier = \
-                        new_frontier.union(self.city.N[f[0],f[1]]).difference(set(visited))
+                        new_frontier.union(self.city.N[f[0], f[1]]).difference(set(visited))
                 frontier = list(new_frontier)
                 distance += 1
 
         return possible_plate_numbers
 
-    def eval_taxi_income(self,taxi_id):
+    def eval_taxi_income(self, taxi_id):
         """
 
         Parameters
@@ -837,7 +824,7 @@ class Simulation:
 
         self.init_canvas()
 
-        for taxi_id,i in self.taxis.keys.items():#TODO nem biztos, hogy működik
+        for taxi_id, i in self.taxis.keys.items():  # TODO nem biztos, hogy működik
             t = self.taxis[taxi_id]
 
             # plot a circle at the place of the taxi
@@ -944,7 +931,7 @@ class Simulation:
                 if t.available:
                     t.time_cruising += 1
                 else:
-                    t.time_to_request +=1
+                    t.time_to_request += 1
 
             # move available taxis on availability grid
             if t.available:
@@ -984,9 +971,6 @@ class Simulation:
 
         data_path = 'results'
 
-        t = []
-        w = []
-        fields = set()
         results = []
 
         time1 = time()
@@ -997,10 +981,10 @@ class Simulation:
 
             ptm = measurement.read_per_taxi_metrics()
             prm = measurement.read_per_request_metrics()
-            results.append(measurement.read_aggregated_metrics(ptm,prm))
-            time2=time()
+            results.append(measurement.read_aggregated_metrics(ptm, prm))
+            time2 = time()
             print('Simulation batch '+str(i+1)+'/'+str(self.num_iter)+' , %.2f sec/batch.' % (time2-time1))
-            time1=time2
+            time1 = time2
 
         # dumping batch results
         f = open(data_path + '/run_' + run_id + '_aggregates.csv','a')
@@ -1010,7 +994,7 @@ class Simulation:
 
         # dumping per taxi metrics out
         f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
-        json.dump(ptm,f)
+        json.dump(ptm, f)
         f.write('\n')
         f.close()
 
@@ -1021,7 +1005,6 @@ class Simulation:
         f.close()
 
         print("Done.\n")
-
 
     def step_time(self, handler):
         """
@@ -1065,9 +1048,10 @@ class Simulation:
             self.plot_simulation()
         self.time += 1
 
+
 class Measurements:
 
-    def __init__(self,simulation):
+    def __init__(self, simulation):
         self.simulation = simulation
 
     def read_per_taxi_metrics(self):
@@ -1151,11 +1135,11 @@ class Measurements:
             c = taxi.time_cruising
             total = s+w+r+c
 
-            ratio_serving.append( s / total )
-            ratio_cruising.append( c / total )
-            ratio_online.append( (s+r) / total )
-            ratio_waiting.append( w / total )
-            ratio_to_request.append( r / total )
+            ratio_serving.append(s / total)
+            ratio_cruising.append(c / total)
+            ratio_online.append((s+r) / total)
+            ratio_waiting.append(w / total)
+            ratio_to_request.append(r / total)
 
         return {
             "timestamp": self.simulation.time,
@@ -1165,9 +1149,9 @@ class Measurements:
             "trip_num_completed": trip_num_completed,
             "ratio_serving": ratio_serving,
             "ratio_cruising": ratio_cruising,
-            "ratio_online":ratio_online,
-            "ratio_waiting":ratio_waiting,
-            "ratio_to_request":ratio_to_request
+            "ratio_online": ratio_online,
+            "ratio_waiting": ratio_waiting,
+            "ratio_to_request": ratio_to_request
         }
 
     def read_per_request_metrics(self):
@@ -1187,7 +1171,7 @@ class Measurements:
                 request_lengths.append(float(np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox)))
             elif r.mode == 'dropped':
                 request_completed.append(0)
-                dropped_coords.append([r.ox,r.oy])
+                dropped_coords.append([r.ox, r.oy])
             else:
                 request_completed.append(0)
 
@@ -1200,11 +1184,11 @@ class Measurements:
                     request_last_waiting_times.append(r.time['pending'])
 
         return {
-            "timestamp" : self.simulation.time,
-            "request_completed" : request_completed,
-            "request_last_waiting_times" : request_last_waiting_times,
-            "request_lengths" : request_lengths,
-            "dropped_coords" : dropped_coords
+            "timestamp": self.simulation.time,
+            "request_completed": request_completed,
+            "request_last_waiting_times": request_last_waiting_times,
+            "request_lengths": request_lengths,
+            "dropped_coords": dropped_coords
         }
 
     @staticmethod
@@ -1212,11 +1196,11 @@ class Measurements:
         metrics = {"timestamp": per_taxi_metrics["timestamp"]}
 
         for k in per_taxi_metrics:
-            if k[0:4]=='trip':
-                if k[5]=='a':
+            if k[0:4] == 'trip':
+                if k[5] == 'a':
                     metrics['avg_'+k] = np.nanmean(per_taxi_metrics[k])
                     metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-            elif k[0:5]=='ratio':
+            elif k[0:5] == 'ratio':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
 
