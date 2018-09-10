@@ -6,8 +6,6 @@ from random import shuffle, gauss, random
 from collections import deque
 from queue import Queue
 
-from time import time
-
 
 class City:
     """
@@ -114,14 +112,10 @@ class City:
             self.request_destination_probabilities = \
                 np.cumsum(self.request_origin_probabilities)
 
-
-    def create_one_request_coord(self,timer=False):
+    def create_one_request_coord(self):
         # here we randomly choose an origin and a destination for the request
         # the random coordinates are pre-stored in several deques for faster access
         # if there are no more pregenerated coordinates in the deques, we generate some more
-
-        tic = time()
-
         # probability stack
         try:
             p = self.request_p.pop()
@@ -129,22 +123,9 @@ class City:
             self.request_p.extend(np.random.random(self.length))
             p = self.request_p.pop()
 
-        toc = time()
-        if timer:
-            print("Creating probabilities to choose from for the separate Gausses.")
-            print("\t%.10f s" % (toc-tic))
-
-        tic = time()
-
         # binning the generated random numbers
         ind = np.digitize(p, self.request_origin_probabilities)
 
-        toc = time()
-        if timer:
-            print("Binning probabilities to obtain Gauss indices.")
-            print("\t%.10f s" % (toc - tic))
-
-        tic = time()
         try:
             ox, oy = self.request_origin_coordstacks[ind].pop()
         except IndexError:
@@ -152,13 +133,6 @@ class City:
                 self.generate_coords(**self.request_origin_distributions[ind])
             )
             ox, oy = self.request_origin_coordstacks[ind].pop()
-
-        toc = time()
-        if timer:
-            print("Generated origin coordinates.")
-            print("\t%.10f s" % (toc - tic))
-
-        tic = time()
 
         # destination
         try:
@@ -169,13 +143,6 @@ class City:
 
         ind = np.digitize(p, self.request_destination_probabilities)
 
-        toc = time()
-        if timer:
-            print("Creating probabilities to choose from for the separate Gausses.")
-            print("\t%.10f s" % (toc-tic))
-
-        tic = time()
-
         try:
             dx, dy = self.request_destination_coordstacks[ind].pop()
         except IndexError:
@@ -183,11 +150,6 @@ class City:
                 self.generate_coords(**self.request_destination_distributions[ind])
             )
             dx, dy = self.request_destination_coordstacks[ind].pop()
-
-        toc = time()
-        if timer:
-            print("Generated destination coordinates.")
-            print("\t%.10f s" % (toc - tic))
 
         return ox, oy, dx, dy
 
@@ -300,7 +262,7 @@ class City:
         """
         This function lists the available taxis according to mode.
 
-        BSF is based on : https://www.hackerearth.com/practice/algorithms/graphs/breadth-first-search/tutorial/
+
 
         Parameters
         ----------
@@ -320,7 +282,7 @@ class City:
             if mode is "circle", gives the circle radius
         """
 
-        # BFS initgit 
+        # BFS initgit
         # the source where we start the search for the nearest vehicle(s)
         s = self.ij_to_c(*source)
         # queue for BFS visit
