@@ -320,48 +320,43 @@ class City:
             if mode is "circle", gives the circle radius
         """
 
-        if mode == "nearest":
-            s = self.ij_to_c(*source)
+        # BFS initgit 
+        # the source where we start the search for the nearest vehicle(s)
+        s = self.ij_to_c(*source)
+        # queue for BFS visit
+        Q = Queue([s])
+        # visited nodes with distance from the source node
+        visited = {s: 0}
+        # current depth storage
+        depth = 0
+        # list of available taxis
+        p = []
 
-            Q = Queue([s])
-            visited = set([s])
+        # while we still have nodes to visit
+        while not Q.empty():
+            # take the next node
+            v = Q.pop()
 
-            while not Q.empty():
-                v = Q.pop()
+            # check if there is a taxi
+            x, y = self.c_to_ij(v)
+            at = self.A[x, y]
+            # if yes, mark it as available
+            if len(at) > 0:
+                p += list(at)
+                # if nearest, mark the first hit's depth as radius
+                if mode == "nearest":
+                    radius = depth
 
-                # check if there is a taxi in the actually visited node
-                x,y = self.c_to_ij(v)
-                p = list(self.A[x, y])
-                if len(p)>0:
-                    break
-
-                # visit the neighbors of v
-                for n in self.N[v]:
-                    if n not in visited:
-                        Q.put(n)
-                        visited.add(n)
-
-        elif mode == "circle":
-            s = self.ij_to_c(*source)
-            Q = Queue([s])
-            visited = {s: 0}
-            depth = 0
-            p = list()
-
-            while not Q.empty():
-                v = Q.pop()
-
-                # check if there is a taxi
-                x, y = self.c_to_ij(v)
-                p += list(self.A[x, y])
-
-                # visit the neighbors of v
-                for n in self.N[v]:
-                    if n not in visited:
-                        Q.put(n)
-                        depth = visited[v] + 1
-                        if depth > radius:
-                            break
-                        visited[n] = depth
+            # visit the neighbors of v
+            for n in self.N[v]:
+                if n not in visited:
+                    Q.put(n)
+                    # the depth of the neighbor is one more than that of its parent in the BFS tree
+                    depth = visited[v] + 1
+                    # if we surpass the search radius, quit BFS
+                    if depth > radius:
+                        break
+                    # store node in the visited ones
+                    visited[n] = depth
 
         return p
