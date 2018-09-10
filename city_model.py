@@ -1052,6 +1052,8 @@ class Measurements:
         ratio_to_request = []
         ratio_cruising = []
         ratio_waiting = []
+        position = []
+
 
         for taxi_id in self.simulation.taxis:
             taxi = self.simulation.taxis[taxi_id]
@@ -1072,6 +1074,7 @@ class Measurements:
             trip_num_completed.append(len(req_prices))
             trip_avg_price.append(self.simulation.eval_taxi_income(taxi_id))
 
+
             s = taxi.time_serving
             w = taxi.time_waiting
             r = taxi.time_to_request
@@ -1084,6 +1087,8 @@ class Measurements:
             ratio_waiting.append(w / total)
             ratio_to_request.append(r / total)
 
+            position.append([taxi.x, taxi.y])
+
         return {
             "timestamp": self.simulation.time,
             "trip_avg_length": trip_avg_length,
@@ -1094,7 +1099,8 @@ class Measurements:
             "ratio_cruising": ratio_cruising,
             "ratio_online": ratio_online,
             "ratio_waiting": ratio_waiting,
-            "ratio_to_request": ratio_to_request
+            "ratio_to_request": ratio_to_request,
+            "position": position
         }
 
     def read_per_request_metrics(self):
