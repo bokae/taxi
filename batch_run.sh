@@ -8,5 +8,5 @@ for file in `ls configs/$1_*.conf`
 do
 	conf=`echo $file | cut -d "/" -f2 | sed 's/.conf//g'`
 	echo "Submitting "$conf"..."
-	sbatch ./run.py $conf
+	sbatch --exclude=jimgray88 -c 6 --mem=1000 ./run.py $conf
 done
