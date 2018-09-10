@@ -377,7 +377,7 @@ class Simulation:
         geometry = [Point(xy) for xy in zip(self.taxi_df.x, self.taxi_df.y)]
 
         self.taxi_df = gpd.GeoDataFrame(self.taxi_df, geometry=geometry)
-        print(self.taxi_df.head())
+        #print(self.taxi_df.head())
 
         if self.show_plot:
             #         plotting variables
@@ -612,7 +612,7 @@ class Simulation:
                 # fetch request
                 r = self.requests[request_id]
                 # search for nearest free taxis
-                possible_taxi_ids = self.find_nearest_available_taxis([r.ox, r.oy])
+                possible_taxi_ids = self.city.find_nearest_available_taxis([r.ox, r.oy])
 
                 # if there were any taxis near
                 if len(possible_taxi_ids) > 0:
@@ -648,7 +648,7 @@ class Simulation:
                 r = self.requests[request_id]
 
                 # find nearest vehicles in a radius
-                possible_taxi_ids = self.find_nearest_available_taxis([r.ox, r.oy],
+                possible_taxi_ids = self.city.find_nearest_available_taxis([r.ox, r.oy],
                                                                       mode="circle",
                                                                       radius=self.hard_limit)
 
@@ -731,64 +731,7 @@ class Simulation:
         if self.log:
             print("\tD request " + str(request_id) + ' taxi ' + str(t.taxi_id))
 
-    def find_nearest_available_taxis(
-            self,
-            source,
-            mode="nearest",
-            radius=None):
-        """
-        This function lists the available taxis according to mode.
 
-        Parameters
-        ----------
-
-        source : tuple, no default
-            coordinates of the place from which we want to determine the nearest
-            possible taxi
-
-        mode : str, default "nearest"
-            determines the mode of taxi listing
-                * "nearest" lists only the nearest taxis, returns a list where there \
-                are all taxis at the nearest possible distance from the source
-
-                * "circle" lists all taxis within a certain distance of the source
-
-        radius : int, optional
-            if mode is "circle", gives the circle radius
-        """
-        frontier = [source]
-        visited = []
-        possible_plate_numbers = []
-
-        distance = 0
-        taxis_found = 0
-        while distance <= self.hard_limit and taxis_found <= len(self.taxis_available):
-            # check available taxis in given nodes
-            for x, y in list(frontier):
-                visited.append((x, y))  # mark the coordinate as visited
-                for t in self.city.A[x, y]:  # get all available taxis there
-                    possible_plate_numbers.append(t)
-                    taxis_found += 1
-            # if we visited everybody, break
-            if len(visited) == self.city.n * self.city.m:
-                break
-            # if we got available taxis in nearest mode, break
-            if (mode == "nearest") and (len(possible_plate_numbers) > 0):
-                break
-            # if we reached our desired depth, break
-            if (mode == "circle") and (distance > radius):
-                break
-            # if not, move on to next depth
-            else:
-                new_frontier = set()
-                # TODO lassú! lehetne jobban is csinálni
-                for f in frontier:
-                    new_frontier = \
-                        new_frontier.union(self.city.N[f[0], f[1]]).difference(set(visited))
-                frontier = list(new_frontier)
-                distance += 1
-
-        return possible_plate_numbers
 
     def eval_taxi_income(self, taxi_id):
         """
