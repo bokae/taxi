@@ -324,14 +324,14 @@ class City:
             s = self.ij_to_c(*source)
 
             Q = Queue([s])
-            visited = set(s)
+            visited = set([s])
 
             while not Q.empty():
                 v = Q.pop()
 
                 # check if there is a taxi in the actually visited node
                 x,y = self.c_to_ij(v)
-                p = self.A[x, y]
+                p = list(self.A[x, y])
                 if len(p)>0:
                     break
 
