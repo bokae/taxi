@@ -282,11 +282,12 @@ class City:
             if mode is "circle", gives the circle radius
         """
 
-        # BFS initgit
+        # BFS init
         # the source where we start the search for the nearest vehicle(s)
         s = self.ij_to_c(*source)
         # queue for BFS visit
-        Q = Queue([s])
+        q = deque()
+        q.append(s)
         # visited nodes with distance from the source node
         visited = {s: 0}
         # current depth storage
@@ -294,10 +295,13 @@ class City:
         # list of available taxis
         p = []
 
+        if mode == "nearest":
+            radius = self.m+self.n
+
         # while we still have nodes to visit
-        while not Q.empty():
+        while len(q) != 0 and depth < radius:
             # take the next node
-            v = Q.pop()
+            v = q.popleft()
 
             # check if there is a taxi
             x, y = self.c_to_ij(v)
@@ -312,7 +316,7 @@ class City:
             # visit the neighbors of v
             for n in self.N[v]:
                 if n not in visited:
-                    Q.put(n)
+                    q.append(n)
                     # the depth of the neighbor is one more than that of its parent in the BFS tree
                     depth = visited[v] + 1
                     # if we surpass the search radius, quit BFS

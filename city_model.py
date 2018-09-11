@@ -374,11 +374,6 @@ class Simulation:
         self.taxi_df = pd.DataFrame.from_dict([dict(v) for k, v in self.taxis.items()])
         self.taxi_df.set_index('taxi_id', inplace=True)
 
-        geometry = [Point(xy) for xy in zip(self.taxi_df.x, self.taxi_df.y)]
-
-        self.taxi_df = gpd.GeoDataFrame(self.taxi_df, geometry=geometry)
-        #print(self.taxi_df.head())
-
         if self.show_plot:
             #         plotting variables
             self.canvas = plt.figure()
@@ -1054,7 +1049,6 @@ class Measurements:
         ratio_waiting = []
         position = []
 
-
         for taxi_id in self.simulation.taxis:
             taxi = self.simulation.taxis[taxi_id]
             req_lengths = []
@@ -1062,7 +1056,7 @@ class Measurements:
 
             for request_id in taxi.requests_completed:
                 r = self.simulation.requests[request_id]
-                length = np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox)
+                length = float(np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox))
                 req_lengths.append(length)
 
             if len(req_lengths) > 0:
@@ -1073,7 +1067,6 @@ class Measurements:
                 trip_std_length.append(np.nan)
             trip_num_completed.append(len(req_prices))
             trip_avg_price.append(self.simulation.eval_taxi_income(taxi_id))
-
 
             s = taxi.time_serving
             w = taxi.time_waiting
@@ -1087,7 +1080,7 @@ class Measurements:
             ratio_waiting.append(w / total)
             ratio_to_request.append(r / total)
 
-            position.append([taxi.x, taxi.y])
+            position.append([int(taxi.x), int(taxi.y)])
 
         return {
             "timestamp": self.simulation.time,
