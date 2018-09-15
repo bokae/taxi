@@ -6,6 +6,7 @@ import os
 import sys
 from generate_configs import avg_length
 from scipy.stats import entropy
+import re
 
 plt.rcParams['font.size'] = 14
 
@@ -17,7 +18,7 @@ class ResultParser:
         data_structure = {}
 
         for f in os.listdir('configs'):
-            if f[0:len(base)] == base:
+            if re.match(base,f) is not None:
                 run_id = f.split('.')[0]
                 data_structure[run_id] = {"counter": 0}  # init empty dict
                 for r in os.listdir('results'):
