@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
     R = 0.5
 
-    d_list = list(np.linspace(50, 400, 8))
+    d_list = list(np.linspace(50, 400, 20))
     print('d_list: ', d_list)
 
     for geom in sorted(geom_dict.keys()):
