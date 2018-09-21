@@ -18,7 +18,7 @@ class ResultParser:
         data_structure = {}
 
         for f in os.listdir('configs'):
-            if re.match(base,f) is not None:
+            if re.match(base, f) is not None:
                 run_id = f.split('.')[0]
                 data_structure[run_id] = {"counter": 0}  # init empty dict
                 for r in os.listdir('results'):
@@ -240,7 +240,7 @@ class ResultVisualizer:
 
     def __init__(self, base):
         self.rp = ResultParser(base)
-        self.df = self.rp.prepare_all_data()
+        self.df = self.rp.prepare_all_data(force = True)
         self.last_figure_index = 0
 
         self.colors = {
@@ -262,16 +262,14 @@ class ResultVisualizer:
             self.df[self.df['mode']==mode],
             index='matching',
             columns=self.rp.cases[mode],
-            values='avg_trip_avg_price',
-            aggfunc=lambda x: x
+            values='avg_trip_avg_price'
         ).T
 
         data_err = pd.pivot_table(
             self.df[self.df['mode']==mode],
             index='matching',
             columns=self.rp.cases[mode],
-            values='std_trip_avg_price',
-            aggfunc=lambda x: x
+            values='std_trip_avg_price'
         ).T
 
         for col in data.columns:
@@ -281,7 +279,7 @@ class ResultVisualizer:
                          alpha=0.8,capsize=3)
             inset.plot(data.index,data_err[col],'o--',alpha=0.8,c=self.colors[col],markersize=4)
 
-        ax.set_ylim([0,data.max().max()*1.2])
+        #ax.set_ylim([0,np.nanmax(data).max()*1.2])
         ax.legend()
         ax.grid()
         ax.set_xlabel(self.rp.cases[mode])
@@ -289,7 +287,7 @@ class ResultVisualizer:
         inset.set_xlabel(self.rp.cases[mode])
         inset.set_ylabel('Std of income distr.')
 
-        plt.savefig('figs/0711_avg_income_'+mode+'.png',dpi=300)
+        plt.savefig('figs/' + self.rp.base + '_avg_income_'+mode+'.png',dpi=300)
 
     def create_requests_completed_plot(self, mode):
             fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
@@ -300,16 +298,14 @@ class ResultVisualizer:
                 self.df[self.df['mode'] == mode],
                 index='matching',
                 columns=self.rp.cases[mode],
-                values='request_completed',
-                aggfunc=lambda x: x
+                values='request_completed'
             ).T
 
             data_err = pd.pivot_table(
                 self.df[self.df['mode'] == mode],
                 index='matching',
                 columns=self.rp.cases[mode],
-                values='request_completed_std',
-                aggfunc=lambda x: x
+                values='request_completed_std'
             ).T
 
             for col in data.columns:
@@ -317,13 +313,13 @@ class ResultVisualizer:
                 plt.errorbar(data.index, data[col], yerr=data_err[col], fmt='none',
                              c=self.colors[col], label=None, legend=False,
                              alpha=0.8, capsize=3)
-            plt.ylim([0, data.max().max() * 1.2])
+            #plt.ylim([0, np.nanmax(data).max() * 1.2])
             plt.legend()
             plt.grid()
             plt.xlabel(self.rp.cases[mode])
             plt.ylabel('Completed request ratio')
 
-            plt.savefig('figs/0711_req_completed_' + mode + '.png', dpi=300)
+            plt.savefig('figs/' + self.rp.base + '_req_completed_' + mode + '.png', dpi=300)
 
     def create_entropy_plot(self, mode):
         fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
@@ -334,16 +330,14 @@ class ResultVisualizer:
             self.df[self.df['mode'] == mode],
             index='matching',
             columns=self.rp.cases[mode],
-            values='entropy_ratio_online',
-            aggfunc=lambda x: x
+            values='entropy_ratio_online'
         ).T
 
         data_err = pd.pivot_table(
             self.df[self.df['mode'] == mode],
             index='matching',
             columns=self.rp.cases[mode],
-            values='entropy_ratio_online_std',
-            aggfunc=lambda x: x
+            values='entropy_ratio_online_std'
         ).T
 
         for col in data.columns:
@@ -351,17 +345,17 @@ class ResultVisualizer:
             plt.errorbar(data.index, data[col], yerr=data_err[col], fmt='none',
                          c=self.colors[col], label=None, legend=False,
                          alpha=0.8, capsize=3)
-        plt.ylim([0, data.max().max() * 1.2])
+        #plt.ylim([0, np.nanmax(data).max() * 1.2])
         plt.legend()
         plt.grid()
         plt.xlabel(self.rp.cases[mode])
         plt.ylabel('Entropy of online ratio')
 
-        plt.savefig('figs/0711_entropy_ratio_online_' + mode + '.png', dpi=300)
+        plt.savefig('figs/' + self.rp.base + '_entropy_ratio_online_' + mode + '.png', dpi=300)
 
 
 if __name__=='__main__':
-    rv = ResultVisualizer('0711_base')
+    rv = ResultVisualizer(sys.argv[1])
     rv.create_income_plot('fixed_taxis')
     rv.create_income_plot('fixed_ratio')
     rv.create_requests_completed_plot('fixed_taxis')
