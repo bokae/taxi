@@ -20,7 +20,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 import json
-from random import choice
+from random import choice, shuffle
 import matplotlib.pyplot as plt
 from time import time
 
@@ -380,7 +380,8 @@ class Simulation:
             self.canvas_ax = self.canvas.add_subplot(1, 1, 1)
             self.canvas_ax.set_aspect('equal', 'box')
             self.cmap = plt.get_cmap('viridis')
-            self.taxi_colors = np.linspace(0, 1, self.num_taxis)
+            self.taxi_colors = list(np.linspace(0, 0.85, self.num_taxis))
+            shuffle(self.taxi_colors)
             self.show_map_labels = config["show_map_labels"]
             self.show_pending = config["show_pending"]
             self.init_canvas()
@@ -763,6 +764,8 @@ class Simulation:
         self.init_canvas()
 
         for taxi_id, i in self.taxis.keys.items():  # TODO nem biztos, hogy működik
+            if i>=3:
+                break
             t = self.taxis[taxi_id]
 
             # plot a circle at the place of the taxi
@@ -919,6 +922,19 @@ class Simulation:
 
             ptm = measurement.read_per_taxi_metrics()
             prm = measurement.read_per_request_metrics()
+
+            # dumping per taxi metrics out (per batch)
+            f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
+            json.dump(ptm, f)
+            f.write('\n')
+            f.close()
+
+            # dumping per request metrics out (per batch)
+            f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
+            json.dump(prm, f)
+            f.write('\n')
+            f.close()
+
             results.append(measurement.read_aggregated_metrics(ptm, prm))
             time2 = time()
             print('Simulation batch '+str(i+1)+'/'+str(self.num_iter)+' , %.2f sec/batch.' % (time2-time1))
@@ -930,17 +946,7 @@ class Simulation:
         f.write('\n')
         f.close()
 
-        # dumping per taxi metrics out
-        f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
-        json.dump(ptm, f)
-        f.write('\n')
-        f.close()
 
-        # dumping per request metrics out
-        f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
-        json.dump(prm, f)
-        f.write('\n')
-        f.close()
 
         print("Done.\n")
 
