@@ -5,35 +5,39 @@ import matplotlib.pyplot as plt
 import os
 import sys
 from generate_configs import avg_length
+from scipy.stats import entropy
+import re
 
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = 14
 
 class ResultParser:
-
     def __init__(self, base):
         print('Initializing ResultParser...')
         self.base = base
         self.last_figure_index = 0
         data_structure = {}
-        self.l = None
 
         for f in os.listdir('configs'):
-            if f[0:len(base)] == base:
-                if f[len(base)] == '.':
-                    print('Reading base conf... configs/'+f)
-                    conf = json.load(open('configs/'+f))
-                    self.l = avg_length(conf)
-                else:
-                    run_id = f.split('.')[0]
-                    data_structure[run_id] = {}  # init empty dict
-                    for r in os.listdir('results'):
-                        if run_id in r:
-                            if r[-3:] == 'csv':
-                                data_structure[run_id]['agg'] = 'results/' + r
-                            elif 'request' in r.split('_'):
-                                data_structure[run_id]['req'] = 'results/' + r
-                            elif 'taxi' in r.split('_'):
-                                data_structure[run_id]['taxi'] = 'results/' + r
+            if re.match(base, f) is not None:
+                run_id = f.split('.')[0]
+                data_structure[run_id] = {"counter": 0}  # init empty dict
+                for r in os.listdir('results'):
+                    if run_id in r:
+                        if r[-3:] == 'csv':
+                            data_structure[run_id]['agg'] = 'results/' + r
+                            data_structure[run_id]["counter"] += 1
+                        elif 'request' in r.split('_'):
+                            data_structure[run_id]['req'] = 'results/' + r
+                            data_structure[run_id]["counter"] += 1
+                        elif 'taxi' in r.split('_'):
+                            data_structure[run_id]['taxi'] = 'results/' + r
+                            data_structure[run_id]["counter"] += 1
+
+        run_ids = list(data_structure.keys())
+        for run_id in run_ids:
+            if data_structure[run_id]["counter"] != 3:
+                del data_structure[run_id]
+
         self.data_structure = data_structure
 
         # human readable legends
@@ -42,6 +46,7 @@ class ResultParser:
             'baseline_random_user_random_taxi': 'random',
             'levelling2_random_user_nearest_poorest_taxi_w_waiting_limit': 'poorest'
          }
+
         self.coldict = {
             "avg_trip_avg_price": "avg_income",
             "std_trip_avg_price": "std_income"
@@ -78,287 +83,282 @@ class ResultParser:
             'request': self.request_agg_plot_vars
         }
 
+        self.superfluous = [
+            'trip_avg_length',
+            'trip_num_completed',
+            'trip_std_length'
+        ]
+
         print('Done.')
 
-    def extract_conf(self, run_id):
-        """
-        Get configuration for a run_id.
-        """
+    def create_data_row(self, run_id):
 
-        try:
-            conf = pd.Series(json.load(open('configs/' + run_id + '.conf')))
+        # extract conf
+        conf = pd.Series(json.load(open('configs/' + run_id + '.conf')))
 
-            if 'R' not in conf:
-                conf['R'] = round(conf['request_rate'] * self.l / conf['num_taxis'], 1)
-            if 'd' not in conf:
-                conf['d'] = round(np.sqrt(conf['n'] * conf['m'] * 1e4 / conf['num_taxis']), 0)
-        except FileNotFoundError:
-            print("No config file for run_id "+run_id+" found in ResultParser with base "+self.base+"!")
-            return
+        if 'fixed_taxis' in run_id:
+            conf['mode']='fixed_taxis'
+        elif 'fixed_ratio' in run_id:
+            conf['mode'] = 'fixed_ratio'
 
-        return conf
+        # for older config files, TODO: for newer it is always there!
+        if 'avg_length' not in conf:
+            conf['avg_length'] = avg_length(conf)
+        if 'R' not in conf:
+            conf['R'] = round(conf['request_rate'] * conf['avg_length'] / conf['num_taxis'], 1)
+        if 'd' not in conf:
+            conf['d'] = round(np.sqrt(conf['n'] * conf['m'] * 1e4 / conf['num_taxis']), 0)
 
-    def extract_aggregate_metrics(self, run_id):
-        try:
-            res_agg = pd.read_csv(self.data_structure[run_id]['agg'], header=0, index_col=0)
-            res_agg = res_agg.loc[res_agg.shape[0]-1]
-            if 'fixed_ratio' in run_id:
-                conf = self.extract_conf(run_id)
-                res_agg['entropy_ratio_online'] = res_agg['entropy_ratio_online']/np.log(conf['num_taxis'])
-        except KeyError:
-            print("No aggregate csv file for run_id " + run_id + " found in ResultParser with base " + self.base + "!")
-            return
+        # extract aggregate metrics
+        # each agg csv contains the same table multiple times under each other
+        begin = [] # collecting the line numbers for all data table beginnings
+        with open(self.data_structure[run_id]['agg']) as f:
+            lc = 0 # line counter
+            for line in f:
+                if line[0] == ',': # if header, append line number
+                    begin.append(lc)
+                lc += 1
 
-        return res_agg
-
-    def extract_timelines(self, run_id):
-        try:
-            res_agg = pd.Series(
-                pd.read_csv(
-                    self.data_structure[run_id]['agg'], header=0, index_col=0
-                ).to_dict(orient='list')
+        if len(begin) == 1: # if there was only one table, the length of the table is the number of lines
+            l = lc # TODO check if it is lc, or lc-1
+        else:
+            l = begin[1] - begin[0] # length of one table
+        d = []
+        for blc in begin: # read each table
+            res_agg = pd.read_csv(
+                self.data_structure[run_id]['agg'],
+                header=0,
+                nrows=l - 1,
+                skiprows=blc,
+                index_col=0
             )
-        except KeyError:
-            print("No aggregate csv file for run_id " + run_id + " found in ResultParser with base " + self.base + "!")
-            return
+            res_agg = res_agg.loc[res_agg.shape[0] - 1]
+            d.append(res_agg)
 
-        return res_agg
+        # averages and standard deviations
+        res_agg = pd.DataFrame(d).mean()
+        res_agg_err = pd.DataFrame(d).std()
 
-    def extract_distribution(self, run_id, mode='taxi'):
+        # reshaping, renaming
+        res_agg = pd.DataFrame([res_agg, res_agg_err]).T
+        res_agg.columns = ['mean', 'std']
 
+        l = res_agg.index.tolist()
+        res_agg = pd.melt(res_agg)
+        res_agg['variable'] = [i for i in l] + [i + '_' + 'std' for i in l]
+        res_agg.set_index('variable', inplace=True)
+        res_agg = pd.Series(res_agg['value'].to_dict())
+
+        # number of multiple runs
+        res_agg['runs'] = len(begin)
+
+        # deleting false entropy calculations, TODO: this step can be omitted for newer files
+        for col in res_agg.index:
+            if col[0:7] == 'entropy':
+                del res_agg[col]
+
+        mode = 'taxi'
         try:
-            res = pd.Series(json.load(open(self.data_structure[run_id][mode])))
-        except KeyError:
-            print("No distribution file for run_id " + run_id + " found in ResultParser with base " + self.base +
-                  " and mode "+mode+"!\n",self.data_structure[run_id][mode])
-            res = None
+            with open(self.data_structure[run_id][mode]) as f:
+                res = []
+                for line in f.readlines():
+                    res.append(pd.Series(json.loads(line.strip('\n'))))
+                res = pd.DataFrame(res).T
 
-        return res
 
-    def collect_aggregate_data(self, run_id):
-        conf = self.extract_conf(run_id)
-        res_agg = self.extract_aggregate_metrics(run_id)
+                res_all = res[res.index.map(lambda x: x != 'timestamp')] \
+                    .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
 
-        if (conf is not None) and (res_agg is not None):
-            agg = pd.concat([conf, res_agg])
+                # entropies, TODO: minima, maxima
+                for row in res.index:
+                    if row[0:5] == 'ratio':
+                        e = []
+                        for col in res.columns:
+                            y, x = np.histogram(res[col][row], range=(0, 1), density=True, bins=100)
+                            e.append(entropy(y) / np.log(conf['num_taxis']))
+                        res_all['entropy_' + row] = np.mean(e)
+                        res_all['entropy_' + row + '_std'] = np.std(e)
+                    elif row!='timestamp':
+                        mins = []
+                        maxs = []
+                        for col in res.columns:
+                            mins.append(min(res[col][row]))
+                            maxs.append(max(res[col][row]))
+                        res_all['min_'+row] = min(mins)
+                        res_all['max_' + row] = max(maxs)
+
+                res_agg = pd.concat([res_agg,res_all])
+                del res_all
+        except json.JSONDecodeError:
+            print('Reading error in '+self.data_structure[run_id][mode]+'!')
+            return None
+
+        mode = 'req'
+        try:
+            with open(self.data_structure[run_id][mode]) as f:
+                res = []
+                for line in f.readlines():
+                    res.append(pd.Series(json.loads(line.strip('\n'))))
+                res = pd.DataFrame(res).T
+
+                m = res.loc['request_completed'].map(lambda l: np.mean(l))
+                res_agg['request_completed'] = np.mean(m)
+                res_agg['request_completed_std'] = np.std(m)
+        except json.JSONDecodeError:
+            print('Reading error in '+self.data_structure[run_id][mode]+'!')
+            return None
+
+        for s in self.superfluous:
+            del res_agg[s]
+
+        return pd.concat([conf, res_agg])
+
+    def prepare_all_data(self, force=False):
+        """
+        This function creates a table that contains all the data from all the runs of a certain base.
+
+        The table is written into a csv, if it exists, the default is that the function reads this file.
+        If it does not exists, or force is True, then it is generated and (re)written.
+
+        """
+
+        if self.base+'_all.csv' not in os.listdir() or force:
+            d = []
+            for run_id in self.data_structure:
+                r = self.create_data_row(run_id)
+                if type(r) is not None:
+                    d.append(dict(r))
+            df = pd.DataFrame.from_dict(d)
+            df['matching']=df['matching'].map(self.algnames)
+            df.to_csv(self.base+'_all.csv')
+            return df
         else:
-            agg = None
+            return pd.read_csv(self.base+'_all.csv',index_col=0,header=0)
 
-        return agg
 
-    def prepare_all_data(self, case='fixed_taxis'):
-        try:
-            var = self.cases[case]
-        except KeyError:
-            print("No such case (" + case + ") is known!")
-            return
+class ResultVisualizer:
 
-        l = [[
-            self.extract_aggregate_metrics(run_id),
-            self.extract_distribution(run_id, "taxi"),
-            self.extract_distribution(run_id, "req"),
-            self.extract_conf(run_id)] for run_id in self.data_structure if case in run_id]
-        l = list(map(pd.concat, filter(lambda x: np.all([elem is not None for elem in x]), l)))
+    def __init__(self, base):
+        self.rp = ResultParser(base)
+        self.df = self.rp.prepare_all_data(force = True)
+        self.last_figure_index = 0
 
-        df = pd.concat(l, axis=1).T
-        df['matching'] = df['matching'].map(self.algnames)
-        df.columns = list(map(lambda x: self.coldict.get(x, x), df.columns))
+        self.colors = {
+            'nearest':'blue',
+            'poorest':'orange',
+            'random':'green'
+        }
 
-        return df
+    def create_income_plot(self,mode):
+        # main plot
+        fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
+        ax = fig.add_subplot(111)
+        self.last_figure_index += 1
 
-    def create_agg_plot(self, case='fixed_taxis'):
-        df = self.prepare_all_data(case)
+        # inset
+        inset = plt.axes([.57, .2, .3, .2])
 
-        # taxi metrics
-        if df is not None:
-            for v in self.agg_plot_vars:
-                nr = int((len(self.agg_plot_vars[v]) - 0.1) / 2) + 1
-                fig, ax = plt.subplots(num=self.last_figure_index, nrows=nr, ncols=2, figsize=(15, 3.75*nr))
-                plt.subplots_adjust(hspace=.3)
-                self.last_figure_index += 1
+        data = pd.pivot_table(
+            self.df[self.df['mode']==mode],
+            index='matching',
+            columns=self.rp.cases[mode],
+            values='avg_trip_avg_price'
+        ).T
 
-                for i, c in enumerate(self.agg_plot_vars[v]):
-                    data = pd.pivot_table(
-                        df,
-                        index='matching',
-                        columns=self.cases[case],
-                        values=self.coldict.get(c, c),
-                        aggfunc=lambda x: x
-                    ).T
-                    # the next line is necessary because of a bug in the config generation whch has already been resolved
-                    data = data[data['nearest'].map(lambda x: type(x)==float)]
-                    if nr>1:
-                        current_ax = ax[int(i / 2), i % 2]
-                    else:
-                        current_ax = ax[i % 2]
-                    data.plot(
-                        kind='line',
-                        style='o--',
-                        ax=current_ax,
-                        rot=0,
-                        legend=False
-                    )
-                    if i == 0:
-                        legend_handles, legend_labels = current_ax.get_legend_handles_labels()
-                    current_ax.set_ylabel(self.coldict.get(c, c))
-                    current_ax.ticklabel_format(axis='y',style="sci", scilimits=(-2, 2))
-                    current_ax.grid()
-                fig.legend(
-                    legend_handles,
-                    legend_labels,
-                    title='algorithm',
-                    loc="lower center",
-                    ncol=len(legend_labels),
-                    bbox_to_anchor=(0.5, (-0.01+3.75*nr)/(3.75*nr)),
-                    bbox_transform=plt.gcf().transFigure
-                )
-                plt.savefig(
-                    'figs/' + self.base + '_agg_'+v+'_' + case + '.png', dpi=300,
-                    bbox_inches='tight'
-                )
+        data_err = pd.pivot_table(
+            self.df[self.df['mode']==mode],
+            index='matching',
+            columns=self.rp.cases[mode],
+            values='std_trip_avg_price'
+        ).T
 
-        else:
-            print("No data to plot.")
-            return
+        for col in data.columns:
+            ax.plot(data.index,data[col],'o--',label=col,c=self.colors[col],alpha=0.8,markersize=4)
+            ax.errorbar(data.index,data[col],yerr=data_err[col],fmt='none',
+                         c=self.colors[col],label=None,legend=False,
+                         alpha=0.8,capsize=3)
+            inset.plot(data.index,data_err[col],'o--',alpha=0.8,c=self.colors[col],markersize=4)
 
-    def create_distr_plot(self, case='fixed_taxis', col='trip_avg_price'):
-        try:
-            var = self.cases[case]
-        except KeyError:
-            print("No such case (" + case + ") is known!")
-            return
+        #ax.set_ylim([0,np.nanmax(data).max()*1.2])
+        ax.legend()
+        ax.grid()
+        ax.set_xlabel(self.rp.cases[mode])
+        ax.set_ylabel('Average income')
+        inset.set_xlabel(self.rp.cases[mode])
+        inset.set_ylabel('Std of income distr.')
 
-        df = self.prepare_all_data(case)
-        if df is not None:
-            data = pd.pivot_table(df, index=var, columns='matching', values=col, aggfunc=lambda x: x)
+        plt.savefig('figs/' + self.rp.base + '_avg_income_'+mode+'.png',dpi=300)
 
-            # the next line is necessary because of a bug in the config generation whch has already been resolved
-            data = data[data['nearest'].map(lambda x: len(x) > 0)]
-
-            data['min'] = data.apply(lambda row: min([min(row[c]) for c in ['nearest', 'poorest', 'random']]), axis=1)
-            data['max'] = data.apply(lambda row: max([max(row[c]) for c in ['nearest', 'poorest', 'random']]), axis=1)
-
-            nr = int((len(data.index)-0.1)/2)+1
-            fig, ax = plt.subplots(num=self.last_figure_index, nrows=nr, ncols=2, figsize=(15, 3.75*nr))
+    def create_requests_completed_plot(self, mode):
+            fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
+            ax = fig.add_subplot(111)
             self.last_figure_index += 1
-            plt.subplots_adjust(hspace=.3)
 
-            legend_handles = []
-            legend_labels = []
-            for i, var in enumerate(data.index):
-                if nr > 1:
-                    current_ax = ax[int(i / 2), i % 2]
-                else:
-                    current_ax = ax[i % 2]
-                for c in ['nearest', 'poorest', 'random']:
-                    y, x = np.histogram(
-                        data.loc[var][c],
-                        range=(data.loc[var]['min'], data.loc[var]['max']),
-                        bins=100,
-                        density=True
-                    )
-                    h = current_ax.fill_between(x[1:], 0, y, label=c, alpha=0.7)
-                    if i == 0:
-                        legend_handles.append(h)
-                        legend_labels.append(c)
-                current_ax.set_ylabel(r'$p($'+col+'$)$')
-                current_ax.set_xlabel('$'+self.cases[case]+'=%.2f$' % var)
-                current_ax.ticklabel_format(style="sci",scilimits=(-2, 2))
-                current_ax.grid()
-                if len(data.index)%2 == 1 and i == len(data.index)-1:
-                    current_ax.set_axis_off()
-            fig.legend(
-                legend_handles,
-                legend_labels,
-                title="algorithm",
-                loc="lower center",
-                ncol=len(legend_labels),
-                bbox_to_anchor=(0.5, (-0.01+3.75*nr)/(3.75*nr)),
-                bbox_transform=plt.gcf().transFigure
-            )
-            plt.savefig(
-                'figs/'+self.base+'_distr_'+case+'.png',
-                bbox_inches='tight'
-            )
-        else:
-            print("No data to plot.")
-            return
+            data = pd.pivot_table(
+                self.df[self.df['mode'] == mode],
+                index='matching',
+                columns=self.rp.cases[mode],
+                values='request_completed'
+            ).T
 
-    def create_timelines(self, case='fixed_taxis'):
-        try:
-            var = self.cases[case]
-        except KeyError:
-            print("No such case (" + case + ") is known!")
-            return
+            data_err = pd.pivot_table(
+                self.df[self.df['mode'] == mode],
+                index='matching',
+                columns=self.rp.cases[mode],
+                values='request_completed_std'
+            ).T
 
-        l = [[
-            self.extract_timelines(run_id),
-            self.extract_conf(run_id)] for run_id in self.data_structure if case in run_id]
-        l = list(map(pd.concat, filter(lambda x: np.all([elem is not None for elem in x]), l)))
+            for col in data.columns:
+                plt.plot(data.index, data[col], 'o--', label=col, c=self.colors[col], alpha=0.8, markersize=4)
+                plt.errorbar(data.index, data[col], yerr=data_err[col], fmt='none',
+                             c=self.colors[col], label=None, legend=False,
+                             alpha=0.8, capsize=3)
+            #plt.ylim([0, np.nanmax(data).max() * 1.2])
+            plt.legend()
+            plt.grid()
+            plt.xlabel(self.rp.cases[mode])
+            plt.ylabel('Completed request ratio')
 
-        df = pd.concat(l, axis=1).T
-        df['matching'] = df['matching'].map(self.algnames)
-        df.columns = list(map(lambda x: self.coldict.get(x, x), df.columns))
+            plt.savefig('figs/' + self.rp.base + '_req_completed_' + mode + '.png', dpi=300)
 
-        if df is not None:
-            for v in self.agg_plot_vars:
-                nr = int((len(self.agg_plot_vars[v]) - 0.1) / 2) + 1
-                for alg in self.algnames.values():
-                    fig, ax = plt.subplots(num=self.last_figure_index, nrows=nr, ncols=2, figsize=(15, 3.75*nr))
-                    plt.subplots_adjust(hspace=.3)
-                    self.last_figure_index += 1
-                    for i, c in enumerate(self.agg_plot_vars[v]):
-                        data = pd.pivot_table(
-                            df,
-                            index='matching',
-                            columns=self.cases[case],
-                            values=self.coldict.get(c, c),
-                            aggfunc=lambda x: x
-                        ).T
+    def create_entropy_plot(self, mode):
+        fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
+        ax = fig.add_subplot(111)
+        self.last_figure_index += 1
 
-                        if nr > 1:
-                            current_ax = ax[int(i / 2), i % 2]
-                        else:
-                            current_ax = ax[i % 2]
+        data = pd.pivot_table(
+            self.df[self.df['mode'] == mode],
+            index='matching',
+            columns=self.rp.cases[mode],
+            values='entropy_ratio_online'
+        ).T
 
-                        for R in data.index:
-                            current_ax.plot(data[alg][R], label=str(R))
-                        if i == 0:
-                            legend_handles, legend_labels = current_ax.get_legend_handles_labels()
-                        current_ax.set_xlabel('Time (1000 tu)')
-                        current_ax.set_ylabel(self.coldict.get(c, c))
-                        current_ax.ticklabel_format(axis='y', style="sci", scilimits=(-2, 2))
-                        current_ax.grid()
-                    fig.legend(
-                        legend_handles,
-                        legend_labels,
-                        title=self.cases[case],
-                        loc="lower center",
-                        ncol=len(legend_labels),
-                        bbox_to_anchor=(0.5, (-0.01+3.75*nr)/(3.75*nr)),
-                        bbox_transform=plt.gcf().transFigure
-                    )
-                    plt.savefig(
-                        'figs/' + self.base + '_timeline_'+v+'_' + case + '_' + alg + '.png',
-                        bbox_inches='tight'
-                    )
+        data_err = pd.pivot_table(
+            self.df[self.df['mode'] == mode],
+            index='matching',
+            columns=self.rp.cases[mode],
+            values='entropy_ratio_online_std'
+        ).T
 
-        else:
-            print("No data to plot.")
-            return
+        for col in data.columns:
+            plt.plot(data.index, data[col], 'o--', label=col, c=self.colors[col], alpha=0.8, markersize=4)
+            plt.errorbar(data.index, data[col], yerr=data_err[col], fmt='none',
+                         c=self.colors[col], label=None, legend=False,
+                         alpha=0.8, capsize=3)
+        #plt.ylim([0, np.nanmax(data).max() * 1.2])
+        plt.legend()
+        plt.grid()
+        plt.xlabel(self.rp.cases[mode])
+        plt.ylabel('Entropy of online ratio')
 
-    def create_map(self, case='fixed_taxis'):
-        return
+        plt.savefig('figs/' + self.rp.base + '_entropy_ratio_online_' + mode + '.png', dpi=300)
 
 
-if __name__ == "__main__":
-    base = sys.argv[1]
-    rp = ResultParser(base)
-
-    rp.create_agg_plot('fixed_ratio')
-    rp.create_agg_plot('fixed_taxis')
-    rp.create_distr_plot('fixed_ratio')
-    rp.create_distr_plot('fixed_taxis')
-    rp.create_timelines('fixed_taxis')
-    rp.create_timelines('fixed_ratio')
-
+if __name__=='__main__':
+    rv = ResultVisualizer(sys.argv[1])
+    rv.create_income_plot('fixed_taxis')
+    rv.create_income_plot('fixed_ratio')
+    rv.create_requests_completed_plot('fixed_taxis')
+    rv.create_requests_completed_plot('fixed_ratio')
+    rv.create_entropy_plot('fixed_taxis')
+    rv.create_entropy_plot('fixed_ratio')
