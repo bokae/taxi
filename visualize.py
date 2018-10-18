@@ -4,13 +4,43 @@ import json
 import matplotlib.pyplot as plt
 import os
 import sys
-from generate_configs import avg_length
-from scipy.stats import entropy
+from generate_configs import avg_length # TODO: only OLD = False flag uses it
 import re
+
+from ineqpy import atkinson # Atkinson index of inequality
 
 plt.rcParams['font.size'] = 14
 
+# Flags whether we are working with old result files.
+OLD = False
+
 class ResultParser:
+    """
+    This class collects the results belonging to a certain base run_id
+    (run_ids are named in a hierarchical fashion as parameterd are being varied).
+    It looks for filenames containing the `base` string, and arranges
+    the result files into a dictionary structure, where the run_ids are
+    the keys, and results belonging to taxis ('taxi'), requests ('req') or
+    aggregate metrics ('agg') are form dictionary of filenames
+    that lead to the different outputs for the parent run_id.
+
+    e.g. {"run_id1": {"taxi": taxi_file.json, "req": request_file.json,
+    "agg": aggregate_metrics.csv}, "run_id2": ...}
+
+    File names are stored with full relative path info, where parent directory
+    is root directory of the repository.
+
+    Only those run_ids are listed, for which all three result files could be
+    found.
+
+    Some helper class variables are also defined.
+
+    Parameters:
+    -----------
+    base: str, no default
+        Base run_id matching run_ids to collect.
+    """
+
     def __init__(self, base):
         print('Initializing ResultParser...')
         self.base = base
@@ -33,6 +63,7 @@ class ResultParser:
                             data_structure[run_id]['taxi'] = 'results/' + r
                             data_structure[run_id]["counter"] += 1
 
+        # deleting run_ids with incomplete results
         run_ids = list(data_structure.keys())
         for run_id in run_ids:
             if data_structure[run_id]["counter"] != 3:
@@ -92,9 +123,22 @@ class ResultParser:
         print('Done.')
 
     def create_data_row(self, run_id):
+        """
+        This function takes a run_id, and collects all results (aggregated, taxi metrics, request metrics)
+        into one single pandas.Series
 
-        # extract conf
-        conf = pd.Series(json.load(open('configs/' + run_id + '.conf')))
+        Parameters
+        ----------
+        run_id: str, no default
+            run_id to collect results for
+
+        Returns
+        -------
+        A pandas.Series object containing all possible data for the run_id.
+
+        """
+        # extract configuration for run_id
+        conf = json.load(open('configs/' + run_id + '.conf'))
 
         if 'fixed_taxis' in run_id:
             conf['mode']='fixed_taxis'
@@ -102,16 +146,17 @@ class ResultParser:
             conf['mode'] = 'fixed_ratio'
 
         # for older config files, TODO: for newer it is always there!
-        if 'avg_length' not in conf:
-            conf['avg_length'] = avg_length(conf)
-        if 'R' not in conf:
-            conf['R'] = round(conf['request_rate'] * conf['avg_length'] / conf['num_taxis'], 1)
-        if 'd' not in conf:
-            conf['d'] = round(np.sqrt(conf['n'] * conf['m'] * 1e4 / conf['num_taxis']), 0)
+        if OLD == True:
+            if 'avg_length' not in conf:
+                conf['avg_length'] = avg_length(conf)
+            if 'R' not in conf:
+                conf['R'] = round(conf['request_rate'] * conf['avg_length'] / conf['num_taxis'], 1)
+            if 'd' not in conf:
+                conf['d'] = round(np.sqrt(conf['n'] * conf['m'] * 1e4 / conf['num_taxis']), 0)
 
         # extract aggregate metrics
         # each agg csv contains the same table multiple times under each other
-        begin = [] # collecting the line numbers for all data table beginnings
+        begin = [] # collecting the line numbers in the file for all data table beginnings
         with open(self.data_structure[run_id]['agg']) as f:
             lc = 0 # line counter
             for line in f:
@@ -120,7 +165,7 @@ class ResultParser:
                 lc += 1
 
         if len(begin) == 1: # if there was only one table, the length of the table is the number of lines
-            l = lc # TODO check if it is lc, or lc-1
+            l = lc
         else:
             l = begin[1] - begin[0] # length of one table
         d = []
@@ -147,37 +192,36 @@ class ResultParser:
         res_agg = pd.melt(res_agg)
         res_agg['variable'] = [i for i in l] + [i + '_' + 'std' for i in l]
         res_agg.set_index('variable', inplace=True)
-        res_agg = pd.Series(res_agg['value'].to_dict())
+        res_agg = res_agg['value'].to_dict()
 
         # number of multiple runs
         res_agg['runs'] = len(begin)
 
         # deleting false entropy calculations, TODO: this step can be omitted for newer files
-        for col in res_agg.index:
-            if col[0:7] == 'entropy':
-                del res_agg[col]
+        if OLD == True:
+            for col in res_agg.index:
+                if col[0:7] == 'entropy':
+                    del res_agg[col]
 
         mode = 'taxi'
+
         try:
             with open(self.data_structure[run_id][mode]) as f:
                 res = []
                 for line in f.readlines():
                     res.append(pd.Series(json.loads(line.strip('\n'))))
                 res = pd.DataFrame(res).T
-
-
                 res_all = res[res.index.map(lambda x: x != 'timestamp')] \
                     .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
 
-                # entropies, TODO: minima, maxima
+                # Atkinson index of inequality for incomes
                 for row in res.index:
-                    if row[0:5] == 'ratio':
+                    if row == 'trip_avg_price':
                         e = []
                         for col in res.columns:
-                            y, x = np.histogram(res[col][row], range=(0, 1), density=True, bins=100)
-                            e.append(entropy(y) / np.log(conf['num_taxis']))
-                        res_all['entropy_' + row] = np.mean(e)
-                        res_all['entropy_' + row + '_std'] = np.std(e)
+                            e.append(atkinson(np.array(res.loc['trip_avg_price'][0])))
+                        res_all['atkinson_' + row] = np.mean(e)
+                        res_all['atkinson_' + row + '_std'] = np.std(e)
                     elif row!='timestamp':
                         mins = []
                         maxs = []
@@ -187,7 +231,9 @@ class ResultParser:
                         res_all['min_'+row] = min(mins)
                         res_all['max_' + row] = max(maxs)
 
-                res_agg = pd.concat([res_agg,res_all])
+                res_all = res_all.to_dict()
+
+                res_agg.update(res_all)
                 del res_all
         except json.JSONDecodeError:
             print('Reading error in '+self.data_structure[run_id][mode]+'!')
@@ -211,8 +257,12 @@ class ResultParser:
         for s in self.superfluous:
             del res_agg[s]
 
-        return pd.concat([conf, res_agg])
+        res_agg.update(conf)
 
+        return res_agg
+
+    # TODO: also, now our algorithm dumps results at different timestamps
+    # TODO: we should handle it!!!
     def prepare_all_data(self, force=False):
         """
         This function creates a table that contains all the data from all the runs of a certain base.
@@ -220,9 +270,13 @@ class ResultParser:
         The table is written into a csv, if it exists, the default is that the function reads this file.
         If it does not exists, or force is True, then it is generated and (re)written.
 
+        Parameters
+        ----------
+        force: bool, default False
+            Load preparated summary table of results or calculate them again.
         """
 
-        if self.base+'_all.csv' not in os.listdir() or force:
+        if 'results/' + self.base + '_all.csv' not in os.listdir('results') or force:
             d = []
             for run_id in self.data_structure:
                 r = self.create_data_row(run_id)
@@ -230,32 +284,62 @@ class ResultParser:
                     d.append(dict(r))
             df = pd.DataFrame.from_dict(d)
             df['matching']=df['matching'].map(self.algnames)
-            df.to_csv(self.base+'_all.csv')
+            df.to_csv('results/' + self.base+'_all.csv')
             return df
         else:
-            return pd.read_csv(self.base+'_all.csv',index_col=0,header=0)
+            return pd.read_csv('results/' + self.base+'_all.csv', index_col=0, header=0)
 
 
 class ResultVisualizer:
+    """
+    This class loads a result parser class with parameter 'base', and then puts
+    the results on various kinds of plots that are needed. Each type of plot is
+    a new method in this visualizer class.
+
+    Outputs go to the figs folder.
+
+    Parameters
+    ----------
+    base: str
+
+    """
 
     def __init__(self, base):
+        # loading the available files for the results of the run
         self.rp = ResultParser(base)
+        # saving results into a dataframe that is used in the visualizations
         self.df = self.rp.prepare_all_data(force = True)
         self.last_figure_index = 0
 
+        # defining standard colors for the results of the three algorithms
         self.colors = {
-            'nearest':'blue',
-            'poorest':'orange',
-            'random':'green'
+            'nearest': 'blue',
+            'poorest': 'orange',
+            'random': 'green'
         }
 
-    def create_income_plot(self,mode):
+    def create_income_plot(self, mode):
+        """
+        This function plots the average income of taxis and the standard deviation of the income
+        distribution at various parameter values of 'd' and 'R'.
+
+        Parameters
+        ----------
+        mode: str, no default
+            either 'fixed_taxis' or 'fixed_ratio', this string determines what to put on the x axis
+
+        Returns
+        -------
+        None
+
+        """
         # main plot
         fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
         ax = fig.add_subplot(111)
         self.last_figure_index += 1
 
-        # inset
+        # inset plot for standard deviations
+        # they could be represented as relative to the average income!
         inset = plt.axes([.57, .2, .3, .2])
 
         data = pd.pivot_table(
@@ -279,7 +363,7 @@ class ResultVisualizer:
                          alpha=0.8,capsize=3)
             inset.plot(data.index,data_err[col],'o--',alpha=0.8,c=self.colors[col],markersize=4)
 
-        #ax.set_ylim([0,np.nanmax(data).max()*1.2])
+        #ax.set_ylim([0,np.nanmax(data).max()*1.2]) # did not work maybe because of nans, or Nones?
         ax.legend()
         ax.grid()
         ax.set_xlabel(self.rp.cases[mode])
@@ -290,38 +374,19 @@ class ResultVisualizer:
         plt.savefig('figs/' + self.rp.base + '_avg_income_'+mode+'.png',dpi=300)
 
     def create_requests_completed_plot(self, mode):
-            fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
-            ax = fig.add_subplot(111)
-            self.last_figure_index += 1
+        """
+        This function creates a plot of the completed request ratio.
+        
+        Parameters
+        ----------
+        mode: str, no default
+            either 'fixed_taxis' or 'fixed_ratio', this string determines what to put on the x axis
 
-            data = pd.pivot_table(
-                self.df[self.df['mode'] == mode],
-                index='matching',
-                columns=self.rp.cases[mode],
-                values='request_completed'
-            ).T
+        Returns
+        -------
+        None
 
-            data_err = pd.pivot_table(
-                self.df[self.df['mode'] == mode],
-                index='matching',
-                columns=self.rp.cases[mode],
-                values='request_completed_std'
-            ).T
-
-            for col in data.columns:
-                plt.plot(data.index, data[col], 'o--', label=col, c=self.colors[col], alpha=0.8, markersize=4)
-                plt.errorbar(data.index, data[col], yerr=data_err[col], fmt='none',
-                             c=self.colors[col], label=None, legend=False,
-                             alpha=0.8, capsize=3)
-            #plt.ylim([0, np.nanmax(data).max() * 1.2])
-            plt.legend()
-            plt.grid()
-            plt.xlabel(self.rp.cases[mode])
-            plt.ylabel('Completed request ratio')
-
-            plt.savefig('figs/' + self.rp.base + '_req_completed_' + mode + '.png', dpi=300)
-
-    def create_entropy_plot(self, mode):
+        """
         fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
         ax = fig.add_subplot(111)
         self.last_figure_index += 1
@@ -330,14 +395,14 @@ class ResultVisualizer:
             self.df[self.df['mode'] == mode],
             index='matching',
             columns=self.rp.cases[mode],
-            values='entropy_ratio_online'
+            values='request_completed'
         ).T
 
         data_err = pd.pivot_table(
             self.df[self.df['mode'] == mode],
             index='matching',
             columns=self.rp.cases[mode],
-            values='entropy_ratio_online_std'
+            values='request_completed_std'
         ).T
 
         for col in data.columns:
@@ -349,7 +414,54 @@ class ResultVisualizer:
         plt.legend()
         plt.grid()
         plt.xlabel(self.rp.cases[mode])
-        plt.ylabel('Entropy of online ratio')
+        plt.ylabel('Completed request ratio')
+
+        plt.savefig('figs/' + self.rp.base + '_req_completed_' + mode + '.png', dpi=300)
+
+    def create_entropy_plot(self, mode):
+        """
+        This function creates the Atkinson index plots.
+
+        Parameters
+        ----------
+        mode: str, no default
+            either 'fixed_taxis' or 'fixed_ratio', this string determines what to put on the x axis
+
+        Returns
+        -------
+        None
+
+        """
+        fig = plt.figure(num=self.last_figure_index, figsize=(10, 7))
+        ax = fig.add_subplot(111)
+        self.last_figure_index += 1
+
+        print(self.df.columns)
+
+        data = pd.pivot_table(
+            self.df[self.df['mode'] == mode],
+            index='matching',
+            columns=self.rp.cases[mode],
+            values='atkinson_trip_avg_price'
+        ).T
+
+        data_err = pd.pivot_table(
+            self.df[self.df['mode'] == mode],
+            index='matching',
+            columns=self.rp.cases[mode],
+            values='atkinson_trip_avg_price_std'
+        ).T
+
+        for col in data.columns:
+            plt.plot(data.index, data[col], 'o--', label=col, c=self.colors[col], alpha=0.8, markersize=4)
+            plt.errorbar(data.index, data[col], yerr=data_err[col], fmt='none',
+                         c=self.colors[col], label=None, legend=False,
+                         alpha=0.8, capsize=3)
+        #plt.ylim([0, np.nanmax(data).max() * 1.2])
+        plt.legend()
+        plt.grid()
+        plt.xlabel(self.rp.cases[mode])
+        plt.ylabel(r'Atkinson index ($\varepsilon = 0.5$) of incomes')
 
         plt.savefig('figs/' + self.rp.base + '_entropy_ratio_online_' + mode + '.png', dpi=300)
 
