@@ -6,19 +6,8 @@ Created on Mon Nov 20 13:00:15 2017
 @author: bokanyie
 """
 
-# Benchmark config file for runtime: 0525_1_priced.conf
-# Benchmark run: python run.py 0525_1_priced
-# Benchmark batch time average original: 14.438
-# Benchmark batch time average with RandomDict: 13.197, not much better...
-# Benchmark batch time after using more list comprehensions and filters: 12.045, not much better...
-# Benchmark batch time after generating coordinates in advance:  5.514, really great!
-# Benchmark batch time after fixing last variable in move_taxi: 5.115, not much gain.
-# Storing the neighbors in advance slightly improved performance.
-
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from shapely.geometry import Point
 import json
 from random import choice, shuffle
 import matplotlib.pyplot as plt
@@ -34,52 +23,52 @@ from geometry import City
 
 class Taxi:
     """
-    Represents a taxi in the simulation.
-    
-    Attributes
-    ----------
-    
-    x : int
-        horizontal grid coordinate
-    
-    y : int
-        vertical grid coordinate
-    
-    taxi_id : int
-        unique identifier of taxi
-        
-    available : bool
-        flag that stores whether taxi is free
-        
-    to_request : bool
-        flag that stores when taxi is moving towards a request
-        but there is still no user sitting in it
-    
-    with_passenger : bool
-        flag that stores when taxi is carrying a passenger
-        
-    actual_request_executing : int
-        id of request that is being executed by the taxi
-        
-    requests_completed : list of ints
-        list of requests completed by taxi
-        
-    time_waiting : int
-        time spent with empty waiting
-    
-    time_serving : int
-        time spent with carrying a passenger
+   Represents a taxi in the simulation.
 
-    time_to_request : int
-        time spent from call assignment to pickup, without a passenger
+   Attributes
+   ----------
 
-    time_cruising : int
-        time spent with travelling empty with no assigned requests
+   x : int
+       horizontal grid coordinate
 
-    next_destination : Queue
-        Queue that stores the path forward of the taxi
-    
-    """
+   y : int
+       vertical grid coordinate
+
+   taxi_id : int
+       unique identifier of taxi
+
+   available : bool
+       flag that stores whether taxi is free
+
+   to_request : bool
+       flag that stores when taxi is moving towards a request
+       but there is still no user sitting in it
+
+   with_passenger : bool
+       flag that stores when taxi is carrying a passenger
+
+   actual_request_executing : int
+       id of request that is being executed by the taxi
+
+   requests_completed : list of ints
+       list of requests completed by taxi
+
+   time_waiting : int
+       time spent with empty waiting
+
+   time_serving : int
+       time spent with carrying a passenger
+
+   time_to_request : int
+       time spent from call assignment to pickup, without a passenger
+
+   time_cruising : int
+       time spent with travelling empty with no assigned requests
+
+   next_destination : Queue
+       Queue that stores the path forward of the taxi
+
+   """
 
     def __init__(self, coords=None, taxi_id=None):
         if coords is None:
@@ -110,6 +99,14 @@ class Taxi:
             self.next_destination = Queue()  # path to travel
 
     def __str__(self):
+        """
+        Verbose string representation of taxi for debugging purposes.
+
+        Returns
+        -------
+        string
+
+        """
         s = [
             "Taxi ",
             str(self.taxi_id),
@@ -127,8 +124,7 @@ class Taxi:
 
     def __iter__(self):
         """
-        This method allows conversion to dict, but we could easily substitute the whole class
-        with a dictionary.
+        This method converts the class into a dict, with attributes as keys.
         """
         for attr, value in self.__dict__.items():
             yield attr, value
@@ -152,6 +148,18 @@ class Request:
     
     taxi_id : int
         id of taxi that serves the request
+
+    time : dict
+        stores the times spent
+            "pending" : waiting for assignment
+            "waiting" : waiting for a taxi
+            "serving" : being served
+
+    mode : str
+        current mode (see the keys of the `time` dict)
+
+    timestamps : dict
+        stores simulation timestamps of the change of mode
     """
 
     def __init__(self, ocoords=None, dcoords=None, request_id=None, timestamp=None):
@@ -194,10 +202,26 @@ class Request:
             }
 
     def timer(self):
+        """
+        Method for ticking one of the timers of the request according to its current state.
+
+        Returns
+        -------
+        None
+
+        """
         if self.mode != 'done' and self.mode != 'dropped':
             self.time[self.mode] += 1
 
     def __str__(self):
+        """
+        Verbose string representation of request for debugging purposes.
+
+        Returns
+        -------
+        string
+
+        """
         s = [
             "Request ",
             str(self.request_id),
@@ -222,6 +246,9 @@ class Request:
         return "".join(s)
 
     def __iter__(self):
+        """
+        This method converts the class into a dict, with attributes as keys.
+        """
         for attr, value in self.__dict__.iteritems():
             yield attr, value
 
@@ -413,16 +440,13 @@ class Simulation:
         """
         # create a taxi at the base
         tx = Taxi(self.city.base_coords, self.latest_taxi_id)
-
         # add to taxi storage
         self.taxis[self.latest_taxi_id] = tx
-        # add to available taxi storage
-        # TODO faster indexing?
         # add to available taxi matrix
         self.city.A[self.city.base_coords[0], self.city.base_coords[1]].add(self.latest_taxi_id)
+        # add to available taxi storage
         self.taxis_available[self.latest_taxi_id] = tx
-
-        # increase id
+        # increase counter
         self.latest_taxi_id += 1
 
     def add_request(self):
@@ -433,10 +457,9 @@ class Simulation:
         # here we randomly choose a place for the request
         # the random coordinates are pre-stored in a deque for faster access
         # if there are no more pregenerated coordinates in the deque, we generate some more
-        # origin
 
+        # origin and destination coordinates
         ox, oy, dx, dy = self.city.create_one_request_coord()
-
         r = Request([ox, oy], [dx, dy], self.latest_request_id, self.time)
 
         # add to request storage
@@ -444,7 +467,7 @@ class Simulation:
         # add to free users
         self.requests_pending_deque.appendleft(self.latest_request_id)
         self.requests_pending.add(self.latest_request_id)
-
+        # increase counter
         self.latest_request_id += 1
 
     def go_to_base(self, taxi_id, bcoords):
@@ -521,10 +544,10 @@ class Simulation:
     def check_waiting_times(self):
         """
         At the end of each assignment turn, this function drops requests that have been waiting for too long.
-
         """
 
         # do the check only if it already makes sense
+        # before this, the simulation is not old enough to have any requests dropped
         if self.time >= self.max_request_waiting_time:
 
             # making local_variables
@@ -532,35 +555,51 @@ class Simulation:
             left = self.requests_pending_deque
             max_time = self.max_request_waiting_time
 
-            # if there is something in the temporary list
+            # if the temporary list is not empty
             if len(right) > 0:
-                # if the temporary list starts with a too old element
+                # if the `right` starts with a way too old element
+                # then the first element that has to be dropped is in `left`
                 if self.requests[right[0]].time['pending'] >= max_time:
                     # clear temporary list
                     right.clear()
-                    # prune original list
+                    # prune `left`
+                    # (pop elements that are too old)
                     for i in range(len(left)):
+                        # we are counting backwards, from the end of the `left` list!!!
                         if i > 0 and self.requests[left[-i-1]].time['pending'] >= max_time:
                             left.pop()
                         else:
+                            # requests are ordered by time
+                            # once we've reached the else branch
+                            # all following elements will be young enough
                             break
+                # if `right` starts with an element that still has not succeeded the waiting limit
+                # then the first element that has to be dropped is in `left`
                 else:
-                    # prune temporary list
+                    # prune `right`
+                    # (pop elements that are too old)
                     for i in range(len(right)):
+                        # we are counting backwards, from the end of the `right` list!!!
                         if i > 0 and self.requests[right[-i-1]].time['pending'] >= max_time:
                             right.pop()
                         else:
+                            # requests are ordered by time
+                            # once we've reached the else branch
+                            # all following elements will be young enough
                             break
             else:
-                # prune original list
+                # if there is nobody in `right`
+                # prune `left` in the same way as before
                 for i in range(len(left)):
                     if i > 0 and self.requests[left[-i - 1]].time['pending'] >= max_time:
                         left.pop()
                     else:
                         break
-
+            # union the two lists
             left.extend(right)
+            # clear the temp deque
             self.requests_pending_deque_temporary.clear()
+            # assign the new pending list to the class attributes
             self.requests_pending_deque = left
             self.requests_pending = set(left)
 
