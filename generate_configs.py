@@ -44,8 +44,6 @@ if __name__ == '__main__':
     geom_dict = {i: json.loads(geom.strip('\n')) for i, geom
                  in enumerate(open("geom_specification_compact.json").readlines())}
 
-    print(json.dumps(geom_dict, indent=4))
-
     # common parameters
     temp = json.load(open(base))
 
@@ -72,99 +70,58 @@ if __name__ == '__main__':
     temp['batch_size'] = int(simulation_time/15)
 
 
-    # =====================
-    # fixed number of taxis
-    # =====================
+    # ====================================================
+    # generate configs corresponding to parameter matrix
+    # ====================================================
+    # sweeping through a range of R and d systematically
 
     # d = \sqrt(V/Nt)
-    # fixed d=200m
-    d = 200
-    N = int(round(V/d**2))
-    temp['num_taxis'] = N
+    d_list = list(np.linspace(50, 400, 21))
+    for d in d_list:
+        N = int(round(V/d**2))
+        temp['num_taxis'] = N
 
-    # different ratios
-    R_list = [0.02] + list(np.linspace(0, 1, 21))[1:]
-    print('R_list: ', R_list)
+        # different ratios
+        R_list = [0.02] + list(np.linspace(0, 1, 41))[1:]
 
-    for geom in sorted(geom_dict.keys()):
-        temp.pop('request_origin_distributions', None)
-        temp.pop('request_destination_distributions', None)
-        temp.update(geom_dict[geom])
-        # avg path lengths in the system
-        temp['avg_request_lengths'] = avg_length(temp)
+        for geom in sorted(geom_dict.keys()):
+            # inserting different geometries into the config dict
+            temp.pop('request_origin_distributions', None)
+            temp.pop('request_destination_distributions', None)
+            temp.update(geom_dict[geom])
 
-        for R in R_list:
-            # request rate
-            llambda = int(round(N*v*R / temp['avg_request_lengths'], 0))
-            R_string = ('%.2f' % R).replace('.', '_')
+            # avg path lengths in the system
+            temp['avg_request_lengths'] = avg_length(temp)
 
-            # parameters
-            temp['request_rate'] = llambda
-            temp['R'] = round(R, 2)
-            temp['d'] = 200
-
-            if llambda > 0:
-                for alg in alg_list:
-                    # filename
-                    output = base.split('.')[0] + \
-                        '_fixed_taxis_R_' + R_string + \
-                        '_alg_' + alg + \
-                        '_geom' + str(geom) + \
-                        '.conf'
-
-                    # parameters
-                    temp['matching'] = alg
-
-                    # dump
-                    f = open(output, 'w')
-                    f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
-                    f.write('\n')
-                    f.close()
-
-
-    # =====================
-    # fixed ratio
-    # =====================
-
-    R = 0.5
-
-    d_list = list(np.linspace(50, 400, 20))
-    print('d_list: ', d_list)
-
-    for geom in sorted(geom_dict.keys()):
-        temp.pop('request_origin_distributions', None)
-        temp.pop('request_destination_distributions', None)
-        temp.update(geom_dict[geom])
-        # avg path lengths in the system
-        temp['avg_request_lengths'] = avg_length(temp)
-
-        for d in d_list:
-            # number of taxis
-            N = int(round(V/d**2))
-            # request rate
-            llambda = int(round(N * v * R / temp['avg_request_lengths'], 0))
-
-            # parameters
-            temp['num_taxis'] = N
-            temp['request_rate'] = llambda
-            temp['R'] = 0.5
-            temp['d'] = round(d, 0)
-
-            for alg in alg_list:
-                # filename
-                output = base.split('.')[0] + \
-                    '_fixed_ratio_N_t_' + str(N) + \
-                    '_alg_' + alg + \
-                    '_geom' + str(geom) + \
-                    '.conf'
+            for R in R_list:
+                # request rate
+                llambda = int(round(N*v*R / temp['avg_request_lengths'], 0))
+                R_string = ('%.2f' % R).replace('.', '_')
 
                 # parameters
-                temp['matching'] = alg
+                temp['request_rate'] = llambda
+                temp['R'] = round(R, 2)
+                temp['d'] = round(d, 0)
 
-                # dump
-                f = open(output, 'w')
-                f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
-                f.write('\n')
-                f.close()
+
+                if llambda > 0:
+                    # inserting different algorithms
+                    for alg in alg_list:
+                        # filename
+                        output = base.split('.')[0] + \
+                            '_d_' + str(d) + \
+                            '_R_' + R_string + \
+                            '_alg_' + alg + \
+                            '_geom' + str(geom) + \
+                            '.conf'
+
+                        # parameters
+                        temp['matching'] = alg
+
+                        # dump
+                        f = open(output, 'w')
+                        f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
+                        f.write('\n')
+                        f.close()
 
     os.chdir('..')
