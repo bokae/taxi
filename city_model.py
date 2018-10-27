@@ -68,6 +68,9 @@ class Taxi:
    next_destination : Queue
        Queue that stores the path forward of the taxi
 
+   home : tuple
+        if config setting is "initial_conditions":"random", then this will be the home of the taxi instead of the base
+
    """
 
     def __init__(self, coords=None, taxi_id=None):
@@ -97,6 +100,9 @@ class Taxi:
 
             # storing steps to take
             self.next_destination = Queue()  # path to travel
+
+            # this can only be filled if the city geometry is known
+            self.home = None
 
     def __str__(self):
         """
@@ -364,6 +370,19 @@ class Simulation:
         else:
             self.num_iter = None
 
+        if "behaviour" in config: # goback / stay / cruise
+            self.behaviour = config["behaviour"]
+        else:
+            self.behaviour = "go_back"
+
+        if "initial_conditions" in config: # base / home
+            self.initial_conditions = config["initial_conditions"]
+        else:
+            self.initial_conditions = "base"
+
+        if "reset_time" in config:
+            self.reset_time = config["reset_time"]
+
         self.latest_taxi_id = 0
 
         self.taxis = RandomDict()
@@ -438,12 +457,22 @@ class Simulation:
         Create new taxi.
         
         """
-        # create a taxi at the base
-        tx = Taxi(self.city.base_coords, self.latest_taxi_id)
+
+        home = self.city.create_taxi_home_coords()
+
+        if self.initial_conditions == "base":
+            # create a taxi at the base
+            tx = Taxi(self.city.base_coords, self.latest_taxi_id)
+        elif self.initial_conditions == "home":
+            # create a taxi at home
+            tx = Taxi(home, self.latest_taxi_id)
+
+        tx.home = home
+
         # add to taxi storage
         self.taxis[self.latest_taxi_id] = tx
         # add to available taxi matrix
-        self.city.A[self.city.base_coords[0], self.city.base_coords[1]].add(self.latest_taxi_id)
+        self.city.A[tx.x, tx.y].add(self.latest_taxi_id)
         # add to available taxi storage
         self.taxis_available[self.latest_taxi_id] = tx
         # increase counter
@@ -496,6 +525,32 @@ class Simulation:
 
         # put object back to its place
         self.taxis[taxi_id] = t
+
+    def go_home_everybody(self):
+        """
+        Drop requests that are currently executing, and set taxis as available at their home locations.
+        """
+        for taxi_id in self.taxis:
+            tx = self.taxis[taxi_id]
+
+            if taxi_id in self.taxis_available:
+                # (magic wand) Apparate taxi home!
+                self.city.A[tx.x, tx.y].remove(taxi_id)
+                self.city.A[tx.home[0], tx.home[1]].add(taxi_id)
+                tx.x, tx.y = tx.home
+
+            if taxi_id in self.taxis_to_destination:
+                # if somebody is sitting in it, finish request
+                self.dropoff_request(tx.actual_request_executing, going_home=True)
+
+            if taxi_id in self.taxis_to_request:
+                # if it was only going towards a request, cancel it
+                self.dropoff_request(tx.actual_request_executing, cancel=True, going_home=True)
+
+            self.taxis[taxi_id] = tx
+
+    def cruise(self, taxi_id):
+        return None
 
     def assign_request(self, request_id, taxi_id):
         """
@@ -599,7 +654,8 @@ class Simulation:
             left.extend(right)
             # clear the temp deque
             self.requests_pending_deque_temporary.clear()
-            # assign the new pending list to the class attributes
+            # assign the new pending list to the class attributesvery busy
+
             self.requests_pending_deque = left
             self.requests_pending = set(left)
 
@@ -734,17 +790,28 @@ class Simulation:
         if self.log:
             print('\tP ' + "request " + str(request_id) + ' taxi ' + str(t.taxi_id))
 
-    def dropoff_request(self, request_id):
+    def dropoff_request(self, request_id, cancel=False, going_home=False):
         """
         Drop off passenger, when taxi reached request destination.
         
         """
 
-        # mark dropoff timestamp
         r = self.requests[request_id]
-        r.timestamps['dropoff'] = self.time
-        r.mode = 'done'
         t = self.taxis[r.taxi_id]
+
+        if not cancel:
+            # mark dropoff timestamp
+            r.timestamps['dropoff'] = self.time
+            r.mode = 'done'
+            self.taxis_to_destination.remove(r.taxi_id)
+
+            # update request lists
+            self.requests_in_progress.remove(request_id)
+            t.requests_completed.add(request_id)
+        else:
+            t.next_destination = Queue()
+            self.taxis_to_request.remove(r.taxi_id)
+            self.requests_in_progress.remove(request_id)
 
         # change taxi state to available
         t.with_passenger = False
@@ -752,17 +819,16 @@ class Simulation:
         t.actual_request_executing = None
 
         # update taxi lists
+        if going_home:
+            # (magic wand) Apparate taxi home!
+            t.x,t.y = t.home
         self.city.A[t.x, t.y].add(r.taxi_id)
-        self.taxis_to_destination.remove(r.taxi_id)
         self.taxis_available[r.taxi_id] = t
-
-        # update request lists
-        self.requests_in_progress.remove(request_id)
-        t.requests_completed.add(request_id)
 
         # update request and taxi instances
         self.requests[request_id] = r
         self.taxis[r.taxi_id] = t
+
         if self.log:
             print("\tD request " + str(request_id) + ' taxi ' + str(t.taxi_id))
 
@@ -802,9 +868,9 @@ class Simulation:
 
         self.init_canvas()
 
-        for taxi_id, i in self.taxis.keys.items():  # TODO nem biztos, hogy működik
-            if i>=3:
-                break
+        for taxi_id, i in self.taxis.keys.items():
+            #if i>=3:
+            #    break
             t = self.taxis[taxi_id]
 
             # plot a circle at the place of the taxi
@@ -997,23 +1063,34 @@ class Simulation:
         if self.log:
             print("timestamp " + str(self.time))
 
-        # move every taxi one step towards its destination
-        for taxi_id in self.taxis:
-            self.move_taxi(taxi_id)
+        if (self.time > 0) and (self.time % self.reset_time == 0):
+            self.go_home_everybody()
+        else:
+            # move every taxi one step towards its destination
+            for taxi_id in self.taxis:
+                self.move_taxi(taxi_id)
 
-            t = self.taxis[taxi_id]
+                t = self.taxis[taxi_id]
 
-            # if a taxi can pick up its passenger, do it
-            if taxi_id in self.taxis_to_request:
-                r = self.requests[t.actual_request_executing]
-                if (t.x == r.ox) and (t.y == r.oy):
-                    self.pickup_request(t.actual_request_executing)
-            # if a taxi can drop off its passenger, do it
-            elif taxi_id in self.taxis_to_destination:
-                r = self.requests[t.actual_request_executing]
-                if (t.x == r.dx) and (t.y == r.dy):
-                    self.dropoff_request(r.request_id)
-                    self.go_to_base(taxi_id, self.city.base_coords)
+                # if a taxi can pick up its passenger, do it
+                if taxi_id in self.taxis_to_request:
+                    r = self.requests[t.actual_request_executing]
+                    if (t.x == r.ox) and (t.y == r.oy):
+                        self.pickup_request(t.actual_request_executing)
+                # if a taxi can drop off its passenger, do it
+                elif taxi_id in self.taxis_to_destination:
+                    r = self.requests[t.actual_request_executing]
+                    if (t.x == r.dx) and (t.y == r.dy):
+                        self.dropoff_request(r.request_id)
+                        if self.behaviour == "go_back":
+                            if self.initial_conditions == "base":
+                                self.go_to_base(taxi_id, self.city.base_coords)
+                            elif self.initial_conditions == "home":
+                                self.go_to_base(taxi_id, t.home)
+                        elif self.behaviour == "stay":
+                            pass
+                        elif self.behaviour == "cruise":
+                            self.cruise(taxi_id)
 
         # generate requests
         for i in range(self.request_rate):
@@ -1029,6 +1106,7 @@ class Simulation:
         # step time
         if self.show_plot:
             self.plot_simulation()
+
         self.time += 1
 
 

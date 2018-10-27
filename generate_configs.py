@@ -44,8 +44,6 @@ if __name__ == '__main__':
     geom_dict = {i: json.loads(geom.strip('\n')) for i, geom
                  in enumerate(open("geom_specification_compact.json").readlines())}
 
-    print(json.dumps(geom_dict, indent=4))
-
     # common parameters
     temp = json.load(open(base))
 
@@ -66,105 +64,79 @@ if __name__ == '__main__':
     # time unit in seconds
     tu = scale/10*v
 
-    # three days in simulation units, supposing 8 working hours/day
-    simulation_time = round(0.01*3*8*3600/tu,0)*100
+    # five days in simulation units, supposing 8 working hours/day
+    simulation_time = round(0.01*5*8*3600/tu, 0)*100
     temp['max_time'] = simulation_time
-    temp['batch_size'] = int(simulation_time/15)
+    temp['batch_size'] = int(simulation_time/80) # 16 sample points in each shift
 
+    # reset taxi positions after an 8-hour shift
+    reset_time = round(0.01*8*3600/tu, 0)*100
 
-    # =====================
-    # fixed number of taxis
-    # =====================
-
-    # d = \sqrt(V/Nt)
-    # fixed d=200m
-    d = 200
-    N = int(round(V/d**2))
-    temp['num_taxis'] = N
-
-    # different ratios
-    R_list = [0.02] + list(np.linspace(0, 1, 21))[1:]
-    print('R_list: ', R_list)
+    # ====================================================
+    # generate configs corresponding to parameter matrix
+    # ====================================================
 
     for geom in sorted(geom_dict.keys()):
+        # inserting different geometries into the config dict
         temp.pop('request_origin_distributions', None)
         temp.pop('request_destination_distributions', None)
         temp.update(geom_dict[geom])
+
         # avg path lengths in the system
         temp['avg_request_lengths'] = avg_length(temp)
 
-        for R in R_list:
-            # request rate
-            llambda = int(round(N*v*R / temp['avg_request_lengths'], 0))
-            R_string = ('%.2f' % R).replace('.', '_')
+        for behaviour, ic, reset in [
+            ("go_back", "base", "false"),
+            ("stay", "base", "false"),
+            ("stay", "home", "false"),
+            ("stay", "home", "true")
+        ]:
+            temp.update({"behaviour": behaviour, "initial_conditions": ic})
 
-            # parameters
-            temp['request_rate'] = llambda
-            temp['R'] = round(R, 2)
-            temp['d'] = 200
+            if reset == 'true':
+                temp.update({"reset_time": reset_time})
 
-            if llambda > 0:
-                for alg in alg_list:
-                    # filename
-                    output = base.split('.')[0] + \
-                        '_fixed_taxis_R_' + R_string + \
-                        '_alg_' + alg + \
-                        '_geom' + str(geom) + \
-                        '.conf'
+            # sweeping through a range of R and d systematically
+
+            # d = \sqrt(V/Nt)
+            d_list = list(np.linspace(50, 400, 11))
+            for d in d_list:
+                N = int(round(V/d**2))
+                temp['num_taxis'] = N
+
+                # different ratios
+                R_list = list(np.linspace(0.05, 1, 20))
+                for R in R_list:
+                    # request rate
+                    llambda = int(round(N*v*R / temp['avg_request_lengths'], 0))
+                    R_string = ('%.2f' % R).replace('.', '_')
+                    d_string = '%d' % d
 
                     # parameters
-                    temp['matching'] = alg
+                    temp['request_rate'] = llambda
+                    temp['R'] = round(R, 2)
+                    temp['d'] = round(d, 0)
 
-                    # dump
-                    f = open(output, 'w')
-                    f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
-                    f.write('\n')
-                    f.close()
+                    if llambda > 0:
+                        # inserting different algorithms
+                        for alg in alg_list:
+                            temp['matching'] = alg
 
+                            # filename
+                            output = base.split('.')[0] + \
+                                '_d_' + d_string + \
+                                '_R_' + R_string + \
+                                '_alg_' + alg + \
+                                '_geom_' + str(geom) + \
+                                '_behav_' + behaviour + \
+                                '_ic_' + ic + \
+                                '_reset_' + reset + \
+                                '.conf'
 
-    # =====================
-    # fixed ratio
-    # =====================
-
-    R = 0.5
-
-    d_list = list(np.linspace(50, 400, 20))
-    print('d_list: ', d_list)
-
-    for geom in sorted(geom_dict.keys()):
-        temp.pop('request_origin_distributions', None)
-        temp.pop('request_destination_distributions', None)
-        temp.update(geom_dict[geom])
-        # avg path lengths in the system
-        temp['avg_request_lengths'] = avg_length(temp)
-
-        for d in d_list:
-            # number of taxis
-            N = int(round(V/d**2))
-            # request rate
-            llambda = int(round(N * v * R / temp['avg_request_lengths'], 0))
-
-            # parameters
-            temp['num_taxis'] = N
-            temp['request_rate'] = llambda
-            temp['R'] = 0.5
-            temp['d'] = round(d, 0)
-
-            for alg in alg_list:
-                # filename
-                output = base.split('.')[0] + \
-                    '_fixed_ratio_N_t_' + str(N) + \
-                    '_alg_' + alg + \
-                    '_geom' + str(geom) + \
-                    '.conf'
-
-                # parameters
-                temp['matching'] = alg
-
-                # dump
-                f = open(output, 'w')
-                f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
-                f.write('\n')
-                f.close()
+                            # dump
+                            f = open(output, 'w')
+                            f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
+                            f.write('\n')
+                            f.close()
 
     os.chdir('..')
