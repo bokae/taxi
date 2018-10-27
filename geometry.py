@@ -112,6 +112,8 @@ class City:
             self.request_destination_probabilities = \
                 np.cumsum(self.request_origin_probabilities)
 
+        self.taxi_home_coordstack = deque([])
+
     def create_one_request_coord(self):
         # here we randomly choose an origin and a destination for the request
         # the random coordinates are pre-stored in several deques for faster access
@@ -253,6 +255,15 @@ class City:
         temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]), temp)
 
         return temp
+
+    def create_taxi_home_coords(self):
+        try:
+            hx,hy = self.taxi_home_coordstack.pop()
+        except IndexError:
+            temp = list(zip(np.random.randint(0, self.n, 1000), np.random.randint(0, self.m, 1000)))
+            self.taxi_home_coordstack.extend(temp)
+            hx,hy = self.taxi_home_coordstack.pop()
+        return hx,hy
 
     def find_nearest_available_taxis(
             self,
