@@ -6,6 +6,7 @@ import os
 import sys
 from generate_configs import avg_length # TODO: only OLD = False flag uses it
 import re
+import scipy.stats as stats
 
 from ineqpy import atkinson # Atkinson index of inequality
 
@@ -91,6 +92,7 @@ class ResultParser:
             "avg_ratio_cruising", "avg_request_last_waiting_times"
         ]
 
+
         # which fixed parameters we can use, and what are the varying parameters in that case
         self.cases = {
             "fixed_taxis" : "R",
@@ -121,6 +123,7 @@ class ResultParser:
         ]
 
         print('Done.')
+
 
     def create_data_row(self, run_id):
         """
@@ -214,6 +217,10 @@ class ResultParser:
                 res_all = res[res.index.map(lambda x: x != 'timestamp')] \
                     .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
 
+                ## res ->> egy sora a price es abban minden oszlop egy timestamp es azon belul a
+                gain_matrix = self.make_gain_matrix(res.loc["trip_avg_price"])
+
+
                 # Atkinson index of inequality for incomes
                 for row in res.index:
                     if row == 'trip_avg_price':
@@ -232,7 +239,7 @@ class ResultParser:
                         res_all['max_' + row] = max(maxs)
 
                 res_all = res_all.to_dict()
-
+                res_all['kendall'] = gain_matrix
                 res_agg.update(res_all)
                 del res_all
         except json.JSONDecodeError:
@@ -288,6 +295,44 @@ class ResultParser:
             return df
         else:
             return pd.read_csv('results/' + self.base+'_all.csv', index_col=0, header=0)
+
+    # def prepare_price_data(self, force=False):
+    #     if 'results/' + self.base + '_price.csv' not in os.listdir('results') or force:
+    #         d = []
+    #         for run_id in self.data_structure:
+    #             gm = self.make_gain_data(run_id)
+    #             if type(gm) is not None:
+    #                 d.append({run_id: gm})
+    #         df = pd.DataFrame.from_dict(d)
+    #         df['matching']=df['matching'].map(self.algnames) #?
+    #         df.to_csv('results/' + self.base+'_price.csv')
+    #         return df
+    #     else:
+    #         return pd.read_csv('results/' + self.base+'_price.csv', index_col=0, header=0)
+
+
+    def make_gain_matrix(self, price_data_row):
+    # takes a list in which the elements are lists that contain the earnings of cab drivers. This matrix has rows according
+    # to the steps of a simulation and columns according to taxi ids
+
+        gain_matrix = []
+        for i in range(len(price_data_row)-1):
+            list1 = price_data_row[i]
+            list2 = price_data_row[i+1]
+            gain = (np.array(list2)-np.array(list1)).tolist()
+            gain_matrix.append(gain)
+        return gain_matrix
+
+    def kendall(self, gain_matrix):
+        # this function takes the matrix of gains that taxis make between consecutive time steps and returns the
+        # sum of Kendall Tau values. Maybe the sum is not the best value?
+        kendall_tau = []
+        for i in range(len(gain_matrix)-1):
+            list1 = gain_matrix[i]
+            list2 = gain_matrix[i+1]
+            kendall_tau.append((stats.kendalltau(list1, list2))[0])
+
+        return np.sum(kendall_tau)
 
 
 class ResultVisualizer:
