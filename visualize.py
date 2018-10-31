@@ -137,12 +137,15 @@ class ResultParser:
 
         Returns
         -------
-        A pandas.Series object containing all possible data for the run_id.
+        A dict containing all possible data for the run_id.
 
         """
-        # extract configuration for run_id
+        #############################
+        # reading configuration files
+        #############################
         conf = json.load(open('configs/' + run_id + '.conf'))
 
+        # deprecated, but I leave it here for now
         if 'fixed_taxis' in run_id:
             conf['mode']='fixed_taxis'
         elif 'fixed_ratio' in run_id:
@@ -157,7 +160,9 @@ class ResultParser:
             if 'd' not in conf:
                 conf['d'] = round(np.sqrt(conf['n'] * conf['m'] * 1e4 / conf['num_taxis']), 0)
 
-        # extract aggregate metrics
+        #############################
+        # reading aggregate metrics
+        #############################
         # each agg csv contains the same table multiple times under each other
         begin = [] # collecting the line numbers in the file for all data table beginnings
         with open(self.data_structure[run_id]['agg']) as f:
@@ -183,11 +188,12 @@ class ResultParser:
             res_agg = res_agg.loc[res_agg.shape[0] - 1]
             d.append(res_agg)
 
-        # averages and standard deviations
+        # averages and standard deviations from the multiple runs
+        # there is only one run per run_id now, currently is deprecated!
         res_agg = pd.DataFrame(d).mean()
         res_agg_err = pd.DataFrame(d).std()
 
-        # reshaping, renaming
+        # reshaping, renaming, creating dictionary
         res_agg = pd.DataFrame([res_agg, res_agg_err]).T
         res_agg.columns = ['mean', 'std']
 
@@ -197,7 +203,7 @@ class ResultParser:
         res_agg.set_index('variable', inplace=True)
         res_agg = res_agg['value'].to_dict()
 
-        # number of multiple runs
+        # number of multiple runs, if necessary
         res_agg['runs'] = len(begin)
 
         # deleting false entropy calculations, TODO: this step can be omitted for newer files
@@ -206,60 +212,55 @@ class ResultParser:
                 if col[0:7] == 'entropy':
                     del res_agg[col]
 
-        mode = 'taxi'
+        #############################
+        # reading per taxi metrics
+        #############################
+        with open(self.data_structure[run_id]['taxi']) as f:
+            res = []
+            for line in f.readlines():
+                res.append(json.loads(line.strip('\n')))
+            res = pd.DataFrame.from_dict(res).T
 
-        try:
-            with open(self.data_structure[run_id][mode]) as f:
-                res = []
-                for line in f.readlines():
-                    res.append(pd.Series(json.loads(line.strip('\n'))))
-                res = pd.DataFrame(res).T
-                res_all = res[res.index.map(lambda x: x != 'timestamp')] \
-                    .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
+            last_timestamp = list(res.columns)[-1]
 
-                ## res ->> egy sora a price es abban minden oszlop egy timestamp es azon belul a
-                gain_matrix = self.make_gain_matrix(res.loc["trip_avg_price"])
+            # unioning all data from all timestamps, needed for global range min max values
+            # for every metrics except for timestamp
+            res_all = res[res.index.map(lambda x: x != 'timestamp')] \
+                .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
 
+            # minima and maxima
+            for row in res.index:
+                if not (row == 'timestamp' or row == 'trip_avg_price'):
+                    mins = []
+                    maxs = []
+                    for col in res.columns:
+                        mins.append(min(res[col][row]))
+                        maxs.append(max(res[col][row]))
+                    res_all['min_'+row] = min(mins)
+                    res_all['max_' + row] = max(maxs)
+            res_all = res_all.to_dict()
 
-                # Atkinson index of inequality for incomes
-                for row in res.index:
-                    if row == 'trip_avg_price':
-                        e = []
-                        for col in res.columns:
-                            e.append(atkinson(np.array(res.loc['trip_avg_price'][0])))
-                        res_all['atkinson_' + row] = np.mean(e)
-                        res_all['atkinson_' + row + '_std'] = np.std(e)
-                    elif row!='timestamp':
-                        mins = []
-                        maxs = []
-                        for col in res.columns:
-                            mins.append(min(res[col][row]))
-                            maxs.append(max(res[col][row]))
-                        res_all['min_'+row] = min(mins)
-                        res_all['max_' + row] = max(maxs)
+            # Atkinson index of inequality for incomes
+            res_all['atkinson'] = atkinson(np.array(res[last_timestamp]['trip_avg_price']))
 
-                res_all = res_all.to_dict()
-                res_all['kendall'] = gain_matrix
-                res_agg.update(res_all)
-                del res_all
-        except json.JSONDecodeError:
-            print('Reading error in '+self.data_structure[run_id][mode]+'!')
-            return None
+            # calculating gain matrices between timestamps
+            gain_matrix = self.make_gain_matrix(res.loc["trip_avg_price"])
+            # kendall's tau summed
+            res_all['kendall'] = self.kendall(gain_matrix)
 
-        mode = 'req'
-        try:
-            with open(self.data_structure[run_id][mode]) as f:
-                res = []
-                for line in f.readlines():
-                    res.append(pd.Series(json.loads(line.strip('\n'))))
-                res = pd.DataFrame(res).T
+            res_agg.update(res_all)
+            del res_all
 
-                m = res.loc['request_completed'].map(lambda l: np.mean(l))
-                res_agg['request_completed'] = np.mean(m)
-                res_agg['request_completed_std'] = np.std(m)
-        except json.JSONDecodeError:
-            print('Reading error in '+self.data_structure[run_id][mode]+'!')
-            return None
+        #############################
+        # reading per request metrics
+        #############################
+        with open(self.data_structure[run_id]['req']) as f:
+            # line by line the per request metrics
+            res = []
+            for line in f.readlines():
+                res.append(json.loads(line.strip('\n')))
+            res = pd.DataFrame.from_dict(res).T
+            res_agg['request_completed'] = np.mean(res[last_timestamp]['request_completed'])
 
         for s in self.superfluous:
             del res_agg[s]
@@ -287,8 +288,7 @@ class ResultParser:
             d = []
             for run_id in self.data_structure:
                 r = self.create_data_row(run_id)
-                if type(r) is not None:
-                    d.append(dict(r))
+                d.append(r)
             df = pd.DataFrame.from_dict(d)
             df['matching']=df['matching'].map(self.algnames)
             df.to_csv('results/' + self.base+'_all.csv')
