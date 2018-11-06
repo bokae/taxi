@@ -1245,10 +1245,10 @@ class Measurements:
 
         return {
             "timestamp": self.simulation.time,
-            "request_completed": request_completed,
-            "request_last_waiting_times": request_last_waiting_times,
-            "request_lengths": request_lengths,
-            "dropped_coords": dropped_coords
+            "request_completed": np.mean(request_completed),
+            "request_last_waiting_times": np.mean(request_last_waiting_times),
+            "request_lengths": np.mean(request_lengths)#,
+            #"dropped_coords": dropped_coords
         }
 
     @staticmethod
