@@ -405,11 +405,6 @@ class Simulation:
 
         self.city = City(**config)
 
-        if "hard_limit" in config:
-            self.hard_limit = config["hard_limit"]
-        else:
-            self.hard_limit = self.city.n+self.city.m
-
         self.log = config["log"]
         self.show_plot = config["show_plot"]
 
@@ -741,7 +736,7 @@ class Simulation:
                 # find nearest vehicles in a radius
                 possible_taxi_ids = self.city.find_nearest_available_taxis([r.ox, r.oy],
                                                                       mode="circle",
-                                                                      radius=self.hard_limit)
+                                                                      radius=self.city.hard_limit)
 
                 hit = 0
                 for t in ta_list:

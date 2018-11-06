@@ -114,6 +114,29 @@ class City:
 
         self.taxi_home_coordstack = deque([])
 
+        if "hard_limit" in config:
+            self.hard_limit = config["hard_limit"]
+        else:
+            self.hard_limit = self.n+self.m
+
+        # pre-storing coordinates
+        self.coordinate_dict_ij_to_c = {}
+        for i in range(self.m):
+            for j in range(self.n):
+                if i in self.coordinate_dict_ij_to_c:
+                    self.coordinate_dict_ij_to_c[i][j]=self.ij_to_c(i,j)
+                else:
+                    self.coordinate_dict_ij_to_c[i] = {j : self.ij_to_c(i,j)}
+
+        self.coordinate_dict_c_to_ij = {}
+        for c in range(self.n*self.m):
+            self.coordinate_dict_c_to_ij[c] = self.c_to_ij(c)
+
+        # pre-storing BFS-trees until the depth self.hard_limit
+        self.bfs_trees = {}
+        for c in range(self.n*self.m):
+            self.bfs_trees[c] = self.create_BFS_tree(self.coordinate_dict_c_to_ij[c])
+
     def create_one_request_coord(self):
         # here we randomly choose an origin and a destination for the request
         # the random coordinates are pre-stored in several deques for faster access
@@ -293,14 +316,10 @@ class City:
             if mode is "circle", gives the circle radius
         """
 
-        # BFS init
-        # the source where we start the search for the nearest vehicle(s)
-        s = self.ij_to_c(*source)
-        # queue for BFS visit
-        q = deque()
-        q.append(s)
-        # visited nodes with distance from the source node
-        visited = {s: 0}
+        # select BFS-tree
+        c = self.coordinate_dict_ij_to_c[source[0]][source[1]]
+        tree = self.bfs_trees[c]
+
         # current depth storage
         depth = 0
         # list of available taxis
@@ -309,20 +328,47 @@ class City:
         if mode == "nearest":
             radius = self.m+self.n
 
+        while depth < radius:
+            # take the next nodes
+            v = tree[depth]
+
+            for x, y in v:
+                # check if there are any available taxis, add them to a list
+                at = self.A[x, y]
+                if len(at) > 0:
+                    p += list(at)
+                    # if nearest, mark the first hit's depth as radius
+                    if mode == "nearest":
+                        radius = depth
+            depth+=1
+
+        return p
+
+
+    def create_BFS_tree(
+            self,
+            source,
+            max_depth = None
+    ):
+
+        if max_depth == None:
+            max_depth = self.hard_limit+1
+
+        # BFS init
+        # the source where we start the search for the nearest vehicle(s)
+        s = self.coordinate_dict_ij_to_c[source[0]][source[1]]
+        # queue for BFS visit
+        q = deque()
+        q.append(s)
+        # visited nodes with distance from the source node
+        visited = {s: 0}
+        # current depth storage
+        depth = 0
+
         # while we still have nodes to visit
-        while len(q) != 0 and depth < radius:
+        while len(q) != 0 and depth < max_depth:
             # take the next node
             v = q.popleft()
-
-            # check if there is a taxi
-            x, y = self.c_to_ij(v)
-            at = self.A[x, y]
-            # if yes, mark it as available
-            if len(at) > 0:
-                p += list(at)
-                # if nearest, mark the first hit's depth as radius
-                if mode == "nearest":
-                    radius = depth
 
             # visit the neighbors of v
             for n in self.N[v]:
@@ -331,9 +377,17 @@ class City:
                     # the depth of the neighbor is one more than that of its parent in the BFS tree
                     depth = visited[v] + 1
                     # if we surpass the search radius, quit BFS
-                    if depth > radius:
+                    if depth > max_depth:
                         break
                     # store node in the visited ones
                     visited[n] = depth
 
-        return p
+        bfs_tree = {}
+        # reverse dict
+        for k,v in visited.items():
+            if v in bfs_tree:
+                bfs_tree[v].append(self.coordinate_dict_c_to_ij[k])
+            else:
+                bfs_tree[v] = [self.coordinate_dict_c_to_ij[k]]
+
+        return bfs_tree
