@@ -314,6 +314,9 @@ class City:
             if mode is "circle", gives the circle radius
         """
 
+        if mode == "nearest":
+            radius = self.n+self.m
+
         # select BFS-tree
         tree = self.bfs_trees[source]
 
