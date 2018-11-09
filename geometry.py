@@ -6,7 +6,6 @@ from random import shuffle, gauss, random
 from collections import deque
 from queue import Queue
 
-
 class City:
     """
     Represents a grid on which taxis are moving.
@@ -62,16 +61,13 @@ class City:
         else:
             self.base_coords = [int(self.n/2), int(self.m/2)]
 
-        # array that stores taxi_id of available taxis at the
+        # list that stores taxi_id of available taxis at the
         # specific position on the grid
-        # we initialize this array with empy lists
-        self.A = np.empty((self.n, self.m), dtype=set)
-        for i in range(self.n):
-            for j in range(self.m):
-                self.A[i, j] = set()
+        # we initialize this array with empty sets
+        self.A = [set()]*(self.n*self.m)
 
         # storing neighbors
-        self.N = {c:self.neighbors(c) for c in range(self.n*self.m)}
+        self.N = {c: self.neighbors(c) for c in range(self.n*self.m)}
 
         # generating stacks for request coordinate choice
 
@@ -120,6 +116,7 @@ class City:
             self.hard_limit = self.n+self.m
 
         # pre-storing coordinates
+        # dicts for converting between real positions and their labels
         self.coordinate_dict_ij_to_c = {}
         for i in range(self.m):
             for j in range(self.n):
@@ -135,7 +132,7 @@ class City:
         # pre-storing BFS-trees until the depth self.hard_limit
         self.bfs_trees = {}
         for c in range(self.n*self.m):
-            self.bfs_trees[c] = self.create_BFS_tree(self.coordinate_dict_c_to_ij[c])
+            self.bfs_trees[c] = self.create_BFS_tree(c)
 
     def create_one_request_coord(self):
         # here we randomly choose an origin and a destination for the request
@@ -288,6 +285,7 @@ class City:
             hx,hy = self.taxi_home_coordstack.pop()
         return hx,hy
 
+    #@profile
     def find_nearest_available_taxis(
             self,
             source,
@@ -317,32 +315,25 @@ class City:
         """
 
         # select BFS-tree
-        c = self.coordinate_dict_ij_to_c[source[0]][source[1]]
-        tree = self.bfs_trees[c]
+        tree = self.bfs_trees[source]
 
         # current depth storage
         depth = 0
         # list of available taxis
-        p = []
 
-        if mode == "nearest":
-            radius = self.m+self.n
+        p = set()
 
         while depth < radius:
             # take the next nodes
-            v = tree[depth]
+            ta = set.union(*[self.A[node] for node in tree[depth]])
+            p = p.union(ta)
 
-            for x, y in v:
-                # check if there are any available taxis, add them to a list
-                at = self.A[x, y]
-                if len(at) > 0:
-                    p += list(at)
-                    # if nearest, mark the first hit's depth as radius
-                    if mode == "nearest":
-                        radius = depth
-            depth+=1
+            if mode == "nearest" and len(ta)>0:
+                break
 
-        return p
+            depth += 1
+
+        return list(p)
 
 
     def create_BFS_tree(
@@ -355,13 +346,11 @@ class City:
             max_depth = self.hard_limit+1
 
         # BFS init
-        # the source where we start the search for the nearest vehicle(s)
-        s = self.coordinate_dict_ij_to_c[source[0]][source[1]]
         # queue for BFS visit
         q = deque()
-        q.append(s)
+        q.append(source)
         # visited nodes with distance from the source node
-        visited = {s: 0}
+        visited = {source: 0}
         # current depth storage
         depth = 0
 
@@ -386,8 +375,8 @@ class City:
         # reverse dict
         for k,v in visited.items():
             if v in bfs_tree:
-                bfs_tree[v].append(self.coordinate_dict_c_to_ij[k])
+                bfs_tree[v].append(k)
             else:
-                bfs_tree[v] = [self.coordinate_dict_c_to_ij[k]]
+                bfs_tree[v] = [k]
 
         return bfs_tree

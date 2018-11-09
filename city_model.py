@@ -320,6 +320,8 @@ class Simulation:
 
     def __init__(self, **config):
 
+        self.whileprint = False
+
         # initializing time
         self.time = 0
 
@@ -467,7 +469,7 @@ class Simulation:
         # add to taxi storage
         self.taxis[self.latest_taxi_id] = tx
         # add to available taxi matrix
-        self.city.A[tx.x, tx.y].add(self.latest_taxi_id)
+        self.city.A[self.city.coordinate_dict_ij_to_c[tx.x][tx.y]].add(self.latest_taxi_id)
         # add to available taxi storage
         self.taxis_available[self.latest_taxi_id] = tx
         # increase counter
@@ -530,8 +532,8 @@ class Simulation:
 
             if taxi_id in self.taxis_available:
                 # (magic wand) Apparate taxi home!
-                self.city.A[tx.x, tx.y].remove(taxi_id)
-                self.city.A[tx.home[0], tx.home[1]].add(taxi_id)
+                self.city.A[self.city.coordinate_dict_ij_to_c[tx.x][tx.y]].remove(taxi_id)
+                self.city.A[self.city.coordinate_dict_ij_to_c[tx.home[0]][tx.home[1]]].add(taxi_id)
                 tx.x, tx.y = tx.home
 
             if taxi_id in self.taxis_to_destination:
@@ -560,7 +562,7 @@ class Simulation:
         r.taxi_id = taxi_id
 
         # remove taxi from the available ones
-        self.city.A[t.x, t.y].remove(taxi_id)
+        self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].remove(taxi_id)
         del self.taxis_available[taxi_id]
         t.with_passenger = False
         t.available = False
@@ -676,7 +678,7 @@ class Simulation:
 
         if mode == "baseline_random_user_random_taxi":
 
-            while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
+            while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
                 # select a random taxi
                 taxi_id = self.taxis_available.random_key()
 
@@ -690,7 +692,7 @@ class Simulation:
 
         elif mode == "baseline_random_user_nearest_taxi":
 
-            while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
+            while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
                 # select oldest request from deque
                 request_id = self.requests_pending_deque.pop()
@@ -698,7 +700,7 @@ class Simulation:
                 # fetch request
                 r = self.requests[request_id]
                 # search for nearest free taxis
-                possible_taxi_ids = self.city.find_nearest_available_taxis([r.ox, r.oy])
+                possible_taxi_ids = self.city.find_nearest_available_taxis(self.city.coordinate_dict_ij_to_c[r.ox][r.oy])
 
                 # if there were any taxis near
                 if len(possible_taxi_ids) > 0:
@@ -725,7 +727,8 @@ class Simulation:
             taxi_earnings = [self.eval_taxi_income(taxi_id) for taxi_id in ta_list]
             ta_list = list(np.array(ta_list)[np.argsort(taxi_earnings)])
 
-            while len(self.requests_pending_deque) != 0 and len(self.taxis_available) != 0:
+            pairs = 0
+            while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
                 # select oldest request from deque
                 request_id = self.requests_pending_deque.pop()
@@ -734,10 +737,9 @@ class Simulation:
                 r = self.requests[request_id]
 
                 # find nearest vehicles in a radius
-                possible_taxi_ids = self.city.find_nearest_available_taxis([r.ox, r.oy],
+                possible_taxi_ids = self.city.find_nearest_available_taxis(self.city.coordinate_dict_ij_to_c[r.ox][r.oy],
                                                                       mode="circle",
                                                                       radius=self.city.hard_limit)
-
                 hit = 0
                 for t in ta_list:
                     if t in possible_taxi_ids:
@@ -745,11 +747,13 @@ class Simulation:
                         # make assignment
                         self.assign_request(request_id, t)
                         hit = 1
+                        pairs +=1
                         break
                 if not hit:
                     self.requests_pending_deque_temporary.appendleft(request_id)
 
             self.check_waiting_times()
+
 
         else:
             print("I know of no such assigment mode! Please provide a valid one!")
@@ -817,7 +821,7 @@ class Simulation:
         if going_home:
             # (magic wand) Apparate taxi home!
             t.x,t.y = t.home
-        self.city.A[t.x, t.y].add(r.taxi_id)
+        self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(r.taxi_id)
         self.taxis_available[r.taxi_id] = t
 
         # update request and taxi instances
@@ -976,8 +980,8 @@ class Simulation:
 
             # move available taxis on availability grid
             if t.available:
-                self.city.A[old_x, old_y].remove(taxi_id)
-                self.city.A[t.x, t.y].add(taxi_id)
+                self.city.A[self.city.coordinate_dict_ij_to_c[old_x][old_y]].remove(taxi_id)
+                self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(taxi_id)
 
             if self.log:
                 print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination.queue), "\n",
