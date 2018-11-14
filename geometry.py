@@ -112,6 +112,9 @@ class City:
         else:
             self.hard_limit = self.n+self.m
 
+        if 'length' not in config:
+            self.length = 2e5
+
         # pre-storing coordinates
         # dicts for converting between real positions and their labels
         self.coordinate_dict_ij_to_c = {}
