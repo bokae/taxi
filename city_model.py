@@ -956,6 +956,16 @@ class Simulation:
             results.append(measurement.read_aggregated_metrics(ptm, prm))
             time2 = time()
             print('Simulation batch '+str(i+1)+'/'+str(self.num_iter)+' , %.2f sec/batch.' % (time2-time1))
+            req_counter = {'TOTAL':self.latest_request_id}
+            for request_id in self.requests:
+                r = self.requests[request_id]
+                if r.mode in req_counter:
+                    req_counter[r.mode] += 1
+                else:
+                    req_counter[r.mode] = 1
+            print('Requests:')
+            for mode in req_counter:
+                print('\t'+mode+': '+str(req_counter[mode]))
             time1 = time2
 
         # dumping batch results
@@ -1012,9 +1022,10 @@ class Simulation:
         self.requests_pending_deque_temporary.reverse()
         self.requests_pending_deque.extendleft(self.requests_pending_deque_temporary)
         # delete old requests from pending ones
-        if self.time >= self.max_request_waiting_time:
+        if self.time >= self.max_request_waiting_time and len(self.requests_pending_deque) > 0:
             while self.requests_pending_deque[0] in self.requests_pending_deque_batch[0]:
-                self.requests_pending_deque.popleft()
+                request_id = self.requests_pending_deque.popleft()
+                self.requests[request_id].mode = 'dropped'
 
         # generate requests
         new_requests = set()
@@ -1025,10 +1036,10 @@ class Simulation:
         # this automatically pushes out requests that have been waiting for too long
         self.requests_pending_deque_batch.append(new_requests)
 
-        # step time
         if self.show_plot:
             self.plot_simulation()
 
+        # step time
         self.time += 1
 
 
