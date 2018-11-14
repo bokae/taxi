@@ -99,7 +99,7 @@ class Taxi:
             self.time_to_request = 0
 
             # storing steps to take
-            self.next_destination = Queue()  # path to travel
+            self.next_destination = deque()  # path to travel
 
             # this can only be filled if the city geometry is known
             self.home = None
@@ -195,29 +195,12 @@ class Request:
 
             self.timestamps = {
                 'request': timestamp,
+                'assigned': None,
                 'pickup': None,
                 'dropoff': None
             }
 
             self.mode = 'pending'
-
-            self.time = {
-                'pending': 0,
-                'waiting': 0,
-                'serving': 0
-            }
-
-    def timer(self):
-        """
-        Method for ticking one of the timers of the request according to its current state.
-
-        Returns
-        -------
-        None
-
-        """
-        if self.mode != 'done' and self.mode != 'dropped':
-            self.time[self.mode] += 1
 
     def __str__(self):
         """
@@ -247,7 +230,7 @@ class Request:
                 if self.timestamps['dropoff'] is not None:
                     s += ["\tDropoff timestamp ", str(self.timestamps['dropoff']), ".\n"]
         else:
-            s += ["\tPending since ", str(self.time['pending']), ".\n"]
+            s += ["\tPending since ", str(self.time - self.timestamps['request']), ".\n"]
 
         return "".join(s)
 
@@ -384,6 +367,8 @@ class Simulation:
 
         if "reset_time" in config:
             self.reset_time = config["reset_time"]
+        else:
+            self.reset_time = self.max_time +1
 
         self.latest_taxi_id = 0
 
@@ -401,11 +386,13 @@ class Simulation:
         # speeding up going through requests in the order of waiting times
         # they are pushed into a deque in the order of timestamps
         self.requests_pending_deque = deque()
+        self.requests_pending_deque_batch = deque(maxlen=self.max_request_waiting_time)
         self.requests_pending_deque_temporary = deque()
 
         self.requests_in_progress = set()
 
         self.city = City(**config)
+        self.city.length = int(min(self.max_time*self.request_rate, 1e6))
 
         self.log = config["log"]
         self.show_plot = config["show_plot"]
@@ -491,8 +478,7 @@ class Simulation:
         # add to request storage
         self.requests[self.latest_request_id] = r
         # add to free users
-        self.requests_pending_deque.appendleft(self.latest_request_id)
-        self.requests_pending.add(self.latest_request_id)
+        self.requests_pending_deque.append(self.latest_request_id)
         # increase counter
         self.latest_request_id += 1
 
@@ -514,11 +500,10 @@ class Simulation:
         t.to_request = False
         t.available = True
         #        print("Erasing path memory, Taxi "+str(taxi_id)+".")
-        t.next_destination = Queue()
+        t.next_destination = deque()
         # put path into taxi path queue
         #        print("Filling path memory, Taxi "+str(taxi_id)+". Path ",path)
-        for p in path:
-            t.next_destination.put(p)
+        t.next_destination.extend(path)
 
         # put object back to its place
         self.taxis[taxi_id] = t
@@ -572,18 +557,17 @@ class Simulation:
         self.taxis_to_request.add(taxi_id)
 
         # forget the path that has been assigned
-        t.next_destination = Queue()
+        t.next_destination = deque()
 
         # create new path: to user, then to destination
         path = self.city.create_path([t.x, t.y], [r.ox, r.oy]) + \
             self.city.create_path([r.ox, r.oy], [r.dx, r.dy])[1:]
-        for p in path:
-            t.next_destination.put(p)
+        t.next_destination.extend(path)
 
         # remove request from the pending ones, label it as "in progress"
-        self.requests_pending.remove(request_id)
         self.requests_in_progress.add(request_id)
         r.mode = 'waiting'
+        r.timestamps['assign'] = self.time
 
         # update taxi state in taxi storage
         self.taxis[taxi_id] = t
@@ -592,69 +576,6 @@ class Simulation:
 
         if self.log:
             print("\tM request " + str(request_id) + " taxi " + str(taxi_id))
-
-    def check_waiting_times(self):
-        """
-        At the end of each assignment turn, this function drops requests that have been waiting for too long.
-        """
-
-        # do the check only if it already makes sense
-        # before this, the simulation is not old enough to have any requests dropped
-        if self.time >= self.max_request_waiting_time:
-
-            # making local_variables
-            right = self.requests_pending_deque_temporary
-            left = self.requests_pending_deque
-            max_time = self.max_request_waiting_time
-
-            # if the temporary list is not empty
-            if len(right) > 0:
-                # if the `right` starts with a way too old element
-                # then the first element that has to be dropped is in `left`
-                if self.requests[right[0]].time['pending'] >= max_time:
-                    # clear temporary list
-                    right.clear()
-                    # prune `left`
-                    # (pop elements that are too old)
-                    for i in range(len(left)):
-                        # we are counting backwards, from the end of the `left` list!!!
-                        if i > 0 and self.requests[left[-i-1]].time['pending'] >= max_time:
-                            left.pop()
-                        else:
-                            # requests are ordered by time
-                            # once we've reached the else branch
-                            # all following elements will be young enough
-                            break
-                # if `right` starts with an element that still has not succeeded the waiting limit
-                # then the first element that has to be dropped is in `left`
-                else:
-                    # prune `right`
-                    # (pop elements that are too old)
-                    for i in range(len(right)):
-                        # we are counting backwards, from the end of the `right` list!!!
-                        if i > 0 and self.requests[right[-i-1]].time['pending'] >= max_time:
-                            right.pop()
-                        else:
-                            # requests are ordered by time
-                            # once we've reached the else branch
-                            # all following elements will be young enough
-                            break
-            else:
-                # if there is nobody in `right`
-                # prune `left` in the same way as before
-                for i in range(len(left)):
-                    if i > 0 and self.requests[left[-i - 1]].time['pending'] >= max_time:
-                        left.pop()
-                    else:
-                        break
-            # union the two lists
-            left.extend(right)
-            # clear the temp deque
-            self.requests_pending_deque_temporary.clear()
-            # assign the new pending list to the class attributesvery busy
-
-            self.requests_pending_deque = left
-            self.requests_pending = set(left)
 
     def matching_algorithm(self, mode="baseline"):
         """
@@ -671,7 +592,7 @@ class Simulation:
                 * levelling : based on different measures, we want to equalize payment for taxi drivers
         """
 
-        if len(self.requests_pending) == 0:
+        if len(self.requests_pending_deque) == 0:
             if self.log:
                 print("No pending requests.")
             return
@@ -683,19 +604,17 @@ class Simulation:
                 taxi_id = self.taxis_available.random_key()
 
                 # select oldest request from deque
-                request_id = self.requests_pending_deque.pop()
+                request_id = self.requests_pending_deque.popleft()
 
                 # make assignment
                 self.assign_request(request_id, taxi_id)
-
-            self.check_waiting_times()
 
         elif mode == "baseline_random_user_nearest_taxi":
 
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
                 # select oldest request from deque
-                request_id = self.requests_pending_deque.pop()
+                request_id = self.requests_pending_deque.popleft()
 
                 # fetch request
                 r = self.requests[request_id]
@@ -709,9 +628,7 @@ class Simulation:
                     self.assign_request(request_id, taxi_id)
                 else:
                     # mark request as still pending
-                    self.requests_pending_deque_temporary.appendleft(request_id)
-
-            self.check_waiting_times()
+                    self.requests_pending_deque_temporary.append(request_id)
 
         elif mode == "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit":
             # always order taxi that has earned the least money so far
@@ -731,7 +648,7 @@ class Simulation:
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
                 # select oldest request from deque
-                request_id = self.requests_pending_deque.pop()
+                request_id = self.requests_pending_deque.popleft()
 
                 # fetch request
                 r = self.requests[request_id]
@@ -750,10 +667,7 @@ class Simulation:
                         pairs +=1
                         break
                 if not hit:
-                    self.requests_pending_deque_temporary.appendleft(request_id)
-
-            self.check_waiting_times()
-
+                    self.requests_pending_deque_temporary.append(request_id)
 
         else:
             print("I know of no such assigment mode! Please provide a valid one!")
@@ -808,7 +722,7 @@ class Simulation:
             self.requests_in_progress.remove(request_id)
             t.requests_completed.add(request_id)
         else:
-            t.next_destination = Queue()
+            t.next_destination = deque()
             self.taxis_to_request.remove(r.taxi_id)
             self.requests_in_progress.remove(request_id)
 
@@ -886,8 +800,8 @@ class Simulation:
                 )
 
             # if the taxi has a path ahead of it, plot it
-            if t.next_destination.qsize() != 0:
-                path = np.array([[t.x, t.y]] + list(t.next_destination.queue))
+            if len(t.next_destination)> 0:
+                path = np.array([[t.x, t.y]] + list(t.next_destination))
                 if len(path) > 1:
                     xp, yp = path.T
                     # plot path
@@ -935,7 +849,7 @@ class Simulation:
 
         # plot pending requests
         if self.show_pending:
-            for request_id in self.requests_pending:
+            for request_id in self.requests_pending_deque:
                 self.canvas_ax.plot(
                     self.requests[request_id].ox,
                     self.requests[request_id].oy,
@@ -962,7 +876,7 @@ class Simulation:
 
         try:
             # move taxi one step forward    
-            move = t.next_destination.get_nowait()
+            move = t.next_destination.popleft()
 
             old_x = t.x
             old_y = t.y
@@ -984,7 +898,7 @@ class Simulation:
                 self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(taxi_id)
 
             if self.log:
-                print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination.queue), "\n",
+                print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination), "\n",
                       end="")
         except:
             t.time_waiting += 1
@@ -1054,6 +968,7 @@ class Simulation:
 
         print("Done.\n")
 
+    #@profile
     def step_time(self, handler):
         """
         Ticks simulation time by 1.
@@ -1090,17 +1005,25 @@ class Simulation:
                             pass
                         elif self.behaviour == "cruise":
                             self.cruise(taxi_id)
-
-        # generate requests
-        for i in range(self.request_rate):
-            self.add_request()
-
         # make matchings
         self.matching_algorithm(mode=self.matching)
 
-        # update timer inside requests
-        for request_id in self.requests:
-            self.requests[request_id].timer()
+        # reunite pending requests
+        self.requests_pending_deque_temporary.reverse()
+        self.requests_pending_deque.extendleft(self.requests_pending_deque_temporary)
+        # delete old requests from pending ones
+        if self.time >= self.max_request_waiting_time:
+            while self.requests_pending_deque[0] in self.requests_pending_deque_batch[0]:
+                self.requests_pending_deque.popleft()
+
+        # generate requests
+        new_requests = set()
+        for i in range(self.request_rate):
+            self.add_request()
+            new_requests.add(self.latest_request_id)
+
+        # this automatically pushes out requests that have been waiting for too long
+        self.requests_pending_deque_batch.append(new_requests)
 
         # step time
         if self.show_plot:
@@ -1245,7 +1168,7 @@ class Measurements:
             # it would not be sensible to include all previous waiting times
             if (self.simulation.time - r.timestamps['request']) < 100:
                 if r.mode == 'pending':
-                    request_last_waiting_times.append(r.time['pending'])
+                    request_last_waiting_times.append(self.simulation.time - r.timestamps['request'])
 
         return {
             "timestamp": self.simulation.time,
