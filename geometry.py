@@ -71,9 +71,6 @@ class City:
 
         # generating stacks for request coordinate choice
 
-        # probabilities
-        self.length = int(2e5)
-
         self.request_p = deque([])
 
         if "base_sigma" in config:
@@ -266,11 +263,13 @@ class City:
         # continuous coordinates to grid coordinates
         return int(c/self.n), c % self.n
 
+    #@profile
     def generate_coords(self, **gauss_spec):
 
         temp = map(
-            lambda t: (int(round(t[0], 0)), int(round(t[1], 0))),
-            np.random.multivariate_normal(gauss_spec["location"],gauss_spec["sigma"]*np.eye(2, 2), self.length)
+            lambda t: (int(round(t[0]*gauss_spec["sigma"], 0)+gauss_spec["location"][0]),
+                       int(round(t[1]*gauss_spec["sigma"], 0))+gauss_spec["location"][1]),
+            np.random.normal(size=(self.length, 2))
         )
         temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]), temp)
 
