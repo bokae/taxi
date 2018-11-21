@@ -222,24 +222,24 @@ class ResultParser:
             res = pd.DataFrame.from_dict(res).T
 
             last_timestamp = list(res.columns)[-1]
-"""
-            # unioning all data from all timestamps, needed for global range min max values
-            # for every metrics except for timestamp
-            res_all = res[res.index.map(lambda x: x != 'timestamp').tolist()] \
-                .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
 
-            # minima and maxima
-            for row in res.index:
-                if not (row == 'timestamp' or row == 'trip_avg_price'):
-                    mins = []
-                    maxs = []
-                    for col in res.columns:
-                        mins.append(min(res[col][row]))
-                        maxs.append(max(res[col][row]))
-                    res_all['min_'+row] = min(mins)
-                    res_all['max_' + row] = max(maxs)
-            res_all = res_all.to_dict()
-"""
+            # # unioning all data from all timestamps, needed for global range min max values
+            # # for every metrics except for timestamp
+            # res_all = res[res.index.map(lambda x: x != 'timestamp').tolist()] \
+            #     .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
+            #
+            # # minima and maxima
+            # for row in res.index:
+            #     if not (row == 'timestamp' or row == 'trip_avg_price'):
+            #         mins = []
+            #         maxs = []
+            #         for col in res.columns:
+            #             mins.append(min(res[col][row]))
+            #             maxs.append(max(res[col][row]))
+            #         res_all['min_'+row] = min(mins)
+            #         res_all['max_' + row] = max(maxs)
+            # res_all = res_all.to_dict()
+
 
             res_all = {}
 
