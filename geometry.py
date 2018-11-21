@@ -1,6 +1,7 @@
 
 import numpy as np
 from random import shuffle, gauss, random
+import json
 
 # special data types
 from collections import deque
@@ -64,7 +65,7 @@ class City:
         # list that stores taxi_id of available taxis at the
         # specific position on the grid
         # we initialize this array with empty sets
-        self.A = [set()]*(self.n*self.m)
+        self.A = [set() for _ in range(self.n*self.m)]
 
         # storing neighbors
         self.N = {c: self.neighbors(c) for c in range(self.n*self.m)}
@@ -315,12 +316,14 @@ class City:
         radius : int, optional
             if mode is "circle", gives the circle radius
         """
-
+        if self.log:
+            print("Finding nearest available taxi.")
         if mode == "nearest":
-            radius = self.n+self.m
+            radius = self.hard_limit
 
         # select BFS-tree
         tree = self.bfs_trees[source]
+        # print('This is the BFS-tree.', tree)
 
         # current depth storage
         depth = 0
@@ -330,10 +333,14 @@ class City:
 
         while depth < radius:
             # take the next nodes
+            # print('Taxis available at depth ' + str(depth)+' at nodes '+json.dumps(tree[depth]))
             ta = set.union(*[self.A[node] for node in tree[depth]])
+            # print(ta)
+            # print(self.A)
             p = p.union(ta)
 
             if mode == "nearest" and len(ta)>0:
+                # print("I've found something!")
                 break
 
             depth += 1

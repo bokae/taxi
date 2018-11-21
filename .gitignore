@@ -1,3 +1,4 @@
 .ipynb*
 configs/*_*_*.conf
 results/*
+!configs/geomet*

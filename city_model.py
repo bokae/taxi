@@ -11,7 +11,7 @@ import pandas as pd
 import json
 from random import choice, shuffle
 import matplotlib.pyplot as plt
-from time import time
+from time import time, sleep
 
 # special data types
 from collections import deque
@@ -395,6 +395,7 @@ class Simulation:
         self.city.length = int(min(self.max_time*self.request_rate, 1e6))
 
         self.log = config["log"]
+        self.city.log = self.log
         self.show_plot = config["show_plot"]
 
         # initializing simulation with taxis
@@ -456,7 +457,11 @@ class Simulation:
         # add to taxi storage
         self.taxis[self.latest_taxi_id] = tx
         # add to available taxi matrix
+        # print('Adding taxi '+str(self.latest_taxi_id)+' to A at ' + str(self.city.coordinate_dict_ij_to_c[tx.x][tx.y])+'.')
         self.city.A[self.city.coordinate_dict_ij_to_c[tx.x][tx.y]].add(self.latest_taxi_id)
+        #sleep(0.2)
+        #print('New A ', self.city.A)
+
         # add to available taxi storage
         self.taxis_available[self.latest_taxi_id] = tx
         # increase counter
@@ -517,8 +522,13 @@ class Simulation:
 
             if taxi_id in self.taxis_available:
                 # (magic wand) Apparate taxi home!
+                # print('Removing taxi ' + str(taxi_id) + ' from A at ' + str(self.city.coordinate_dict_ij_to_c[tx.x][tx.y]) +'.')
                 self.city.A[self.city.coordinate_dict_ij_to_c[tx.x][tx.y]].remove(taxi_id)
+                # print('New A ', self.city.A)
+                # print('Adding taxi ' + str(taxi_id) + ' to A at ' + str(
+                   # self.city.coordinate_dict_ij_to_c[tx.home[0]][tx.home[1]]) + '.')
                 self.city.A[self.city.coordinate_dict_ij_to_c[tx.home[0]][tx.home[1]]].add(taxi_id)
+                # print('New A ', self.city.A)
                 tx.x, tx.y = tx.home
 
             if taxi_id in self.taxis_to_destination:
@@ -547,7 +557,10 @@ class Simulation:
         r.taxi_id = taxi_id
 
         # remove taxi from the available ones
+        # print(
+           # 'Removing taxi ' + str(taxi_id) + ' from A at ' + str(self.city.coordinate_dict_ij_to_c[t.x][t.y]) + '.')
         self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].remove(taxi_id)
+        # print('New A ', self.city.A)
         del self.taxis_available[taxi_id]
         t.with_passenger = False
         t.available = False
@@ -597,11 +610,21 @@ class Simulation:
                 print("No pending requests.")
             return
 
+        if self.log:
+            print('Matching algorithm.')
+
         if mode == "baseline_random_user_random_taxi":
 
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
+                if self.log:
+                    print('Ramdom.')
                 # select a random taxi
                 taxi_id = self.taxis_available.random_key()
+
+                if self.log:
+                    print('Available taxis', self.taxis_available.keys)
+                    print('Selected random taxi' + str(taxi_id) + ' from the available ones.')
+
 
                 # select oldest request from deque
                 request_id = self.requests_pending_deque.popleft()
@@ -610,16 +633,20 @@ class Simulation:
                 self.assign_request(request_id, taxi_id)
 
         elif mode == "baseline_random_user_nearest_taxi":
-
+            # print('Nearest.')
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
                 # select oldest request from deque
                 request_id = self.requests_pending_deque.popleft()
+                # print('Selecting oldest request ' + str(request_id))
 
                 # fetch request
                 r = self.requests[request_id]
                 # search for nearest free taxis
                 possible_taxi_ids = self.city.find_nearest_available_taxis(self.city.coordinate_dict_ij_to_c[r.ox][r.oy])
+
+                # print('Available taxis ', self.taxis_available.keys)
+                # print('Possible taxis ', possible_taxi_ids)
 
                 # if there were any taxis near
                 if len(possible_taxi_ids) > 0:
@@ -631,6 +658,7 @@ class Simulation:
                     self.requests_pending_deque_temporary.append(request_id)
 
         elif mode == "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit":
+            # print('Poorest.')
             # always order taxi that has earned the least money so far
             # but choose only from the nearest ones
             # hard limiting: e.g. if there is no taxi within the radius, then quit
@@ -641,7 +669,9 @@ class Simulation:
 
             # evaulate the earnings of the available taxis so far
             ta_list = list(self.taxis_available.keys)
+            # print('Available taxis ', self.taxis_available.keys)
             taxi_earnings = [self.eval_taxi_income(taxi_id) for taxi_id in ta_list]
+            # print('Earnings ', taxi_earnings)
             ta_list = list(np.array(ta_list)[np.argsort(taxi_earnings)])
 
             pairs = 0
@@ -657,6 +687,7 @@ class Simulation:
                 possible_taxi_ids = self.city.find_nearest_available_taxis(self.city.coordinate_dict_ij_to_c[r.ox][r.oy],
                                                                       mode="circle",
                                                                       radius=self.city.hard_limit)
+                # print('Possible ids ', possible_taxi_ids)
                 hit = 0
                 for t in ta_list:
                     if t in possible_taxi_ids:
@@ -735,7 +766,10 @@ class Simulation:
         if going_home:
             # (magic wand) Apparate taxi home!
             t.x,t.y = t.home
+        # print('Adding taxi ' + str(taxi_id) + ' to A at ' + str(
+                # self.city.coordinate_dict_ij_to_c[t.x][t.y]) + '.')
         self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(r.taxi_id)
+        # print('New A ', self.city.A)
         self.taxis_available[r.taxi_id] = t
 
         # update request and taxi instances
@@ -894,8 +928,14 @@ class Simulation:
 
             # move available taxis on availability grid
             if t.available:
+                # print('Removing taxi ' + str(taxi_id) + ' from A at ' + str(
+                    # self.city.coordinate_dict_ij_to_c[old_x][old_y]) + '.')
                 self.city.A[self.city.coordinate_dict_ij_to_c[old_x][old_y]].remove(taxi_id)
+                # print('New A ', self.city.A)
+                # print('Adding taxi ' + str(taxi_id) + ' to A at ' + str(
+                   # self.city.coordinate_dict_ij_to_c[t.x][t.y]) + '.')
                 self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(taxi_id)
+               #  print('New A ', self.city.A)
 
             if self.log:
                 print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination), "\n",
@@ -963,9 +1003,9 @@ class Simulation:
                     req_counter[r.mode] += 1
                 else:
                     req_counter[r.mode] = 1
-            print('Requests:')
-            for mode in req_counter:
-                print('\t'+mode+': '+str(req_counter[mode]))
+            # print('Requests:')
+            # for mode in req_counter:
+                # print('\t'+mode+': '+str(req_counter[mode]))
             time1 = time2
 
         # dumping batch results
@@ -985,9 +1025,10 @@ class Simulation:
         """
 
         if self.log:
-            print("timestamp " + str(self.time))
+            print("Timestamp " + str(self.time))
 
         if (self.time > 0) and (self.time % self.reset_time == 0):
+            # print("Going home!")
             self.go_home_everybody()
         else:
             # move every taxi one step towards its destination
@@ -1000,7 +1041,11 @@ class Simulation:
                 if taxi_id in self.taxis_to_request:
                     r = self.requests[t.actual_request_executing]
                     if (t.x == r.ox) and (t.y == r.oy):
-                        self.pickup_request(t.actual_request_executing)
+                        try:
+                            self.pickup_request(t.actual_request_executing)
+                        except KeyError:
+                            print(t)
+                            print(r)
                 # if a taxi can drop off its passenger, do it
                 elif taxi_id in self.taxis_to_destination:
                     r = self.requests[t.actual_request_executing]

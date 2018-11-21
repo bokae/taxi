@@ -1,11 +1,7 @@
-{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":5}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":10}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":15}]}
 {"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":20}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":30}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":10}],"request_destination_distributions":[{"location":[20,20],"strength":1,"sigma":30}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":30}],"request_destination_distributions":[{"location":[20,20],"strength":1,"sigma":10}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":5,"sigma":10},{"location":[35,35],"strength":5,"sigma":2}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":5,"sigma":10},{"location":[35,35],"strength":2,"sigma":2}],"request_destination_distributions":[{"location":[20,20],"strength":2,"sigma":10},{"location":[35,35],"strength":5,"sigma":2}]}
-{"request_origin_distributions":[{"location":[20,20],"strength":2,"sigma":10},{"location":[35,35],"strength":5,"sigma":2}],"request_destination_distributions":[{"location":[20,20],"strength":5,"sigma":10},{"location":[35,35],"strength":2,"sigma":2}]}
-{"request_origin_distributions":[{"location":[15,15],"strength":5,"sigma":5},{"location":[25,25],"strength":5,"sigma":5}]}
+{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":40}]}
+{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":20}],"request_destination_distributions":[{"location":[20,20],"strength":1,"sigma":40}]}
+{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":40}],"request_destination_distributions":[{"location":[20,20],"strength":1,"sigma":20}]}
+{"request_origin_distributions":[{"location":[20,20],"strength":1,"sigma":40}],"request_destination_distributions":[{"location":[20,20],"strength":5,"sigma":20},{"location":[35,35],"strength":15,"sigma":3}]}
+{"request_origin_distributions":[{"location":[20,20],"strength":5,"sigma":20},{"location":[35,35],"strength":15,"sigma":3}],"request_destination_distributions":[{"location":[20,20],"strength":1,"sigma":40}]}
+{"request_origin_distributions":[{"location":[15,15],"strength":5,"sigma":20},{"location":[25,25],"strength":5,"sigma":20}]}

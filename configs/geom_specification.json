@@ -1,32 +1,6 @@
-# make this file compact: cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact.json
+# make this file compact: 
+cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact.json
 # single center, identical distributions for origin and destination
-{
-	"request_origin_distributions": [
-		{
-			"location":[20,20],
-			"strength":1,
-			"sigma":5
-		}
-	]
-}
-{
-	"request_origin_distributions": [
-		{
-			"location":[20,20],
-			"strength":1,
-			"sigma":10
-		}
-	]
-}
-{
-	"request_origin_distributions": [
-		{
-			"location":[20,20],
-			"strength":1,
-			"sigma":15
-		}
-	]
-}
 {
 	"request_origin_distributions": [
 		{
@@ -41,7 +15,7 @@
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":30
+			"sigma":40
 		}
 	]
 }
@@ -52,14 +26,14 @@
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":10
+			"sigma":20
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":30
+			"sigma":40
 		}
 	]
 }
@@ -69,57 +43,37 @@
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":30
+			"sigma":40
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":10
+			"sigma":20
 		}
 	]
 }
 # airport scenarios
-# equal strength, same distributions
-{
-	"request_origin_distributions": [
-		{
-			"location":[20,20],
-			"strength":5,
-			"sigma":10
-		},
-		{
-			"location":[35,35],
-			"strength":5,
-			"sigma":2
-		}
-	]
-}
 # flow to airport
 {
 	"request_origin_distributions": [
 		{
 			"location":[20,20],
-			"strength":5,
-			"sigma":10
-		},
-		{
-			"location":[35,35],
-			"strength":2,
-			"sigma":2
+			"strength":1,
+			"sigma":40
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
-			"strength":2,
-			"sigma":10
+			"strength":5,
+			"sigma":20
 		},
 		{
 			"location":[35,35],
-			"strength":5,
-			"sigma":2
+			"strength":15,
+			"sigma":3
 		}
 	]
 
@@ -129,28 +83,22 @@
 	"request_origin_distributions": [
 		{
 			"location":[20,20],
-			"strength":2,
-			"sigma":10
+			"strength":5,
+			"sigma":20
 		},
 		{
 			"location":[35,35],
-			"strength":5,
-			"sigma":2
+			"strength":15,
+			"sigma":3
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
-			"strength":5,
-			"sigma":10
-		},
-		{
-			"location":[35,35],
-			"strength":2,
-			"sigma":2
-		}
+			"strength":1,
+			"sigma":40
+		}	
 	]
-
 }
 # multicenter city
 {
@@ -158,12 +106,12 @@
 		{
 			"location":[15,15],
 			"strength":5,
-			"sigma":5
+			"sigma":20
 		},
 		{
 			"location":[25,25],
 			"strength":5,
-			"sigma":5
+			"sigma":20
 		}
 	]
 }
