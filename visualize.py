@@ -222,7 +222,7 @@ class ResultParser:
             res = pd.DataFrame.from_dict(res).T
 
             last_timestamp = list(res.columns)[-1]
-
+"""
             # unioning all data from all timestamps, needed for global range min max values
             # for every metrics except for timestamp
             res_all = res[res.index.map(lambda x: x != 'timestamp').tolist()] \
@@ -239,6 +239,9 @@ class ResultParser:
                     res_all['min_'+row] = min(mins)
                     res_all['max_' + row] = max(maxs)
             res_all = res_all.to_dict()
+"""
+
+            res_all = {}
 
             # Atkinson index of inequality for incomes
             res_all['atkinson'] = atkinson(np.array(res[last_timestamp]['trip_avg_price']))
