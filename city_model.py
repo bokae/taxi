@@ -616,14 +616,14 @@ class Simulation:
         if mode == "baseline_random_user_random_taxi":
 
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
-                if self.log:
-                    print('Ramdom.')
+                #if self.log:
+                #    print('Random.')
                 # select a random taxi
                 taxi_id = self.taxis_available.random_key()
 
-                if self.log:
-                    print('Available taxis', self.taxis_available.keys)
-                    print('Selected random taxi' + str(taxi_id) + ' from the available ones.')
+                #if self.log:
+                #    print('Available taxis', self.taxis_available.keys)
+                #    print('Selected random taxi' + str(taxi_id) + ' from the available ones.')
 
 
                 # select oldest request from deque
@@ -937,9 +937,9 @@ class Simulation:
                 self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(taxi_id)
                #  print('New A ', self.city.A)
 
-            if self.log:
-                print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination), "\n",
-                      end="")
+            #if self.log:
+            #    print("\tF moved taxi " + str(taxi_id) + " remaining path ", list(t.next_destination), "\n",
+            #          end="")
         except:
             t.time_waiting += 1
 
@@ -996,16 +996,7 @@ class Simulation:
             results.append(measurement.read_aggregated_metrics(ptm, prm))
             time2 = time()
             print('Simulation batch '+str(i+1)+'/'+str(self.num_iter)+' , %.2f sec/batch.' % (time2-time1))
-            req_counter = {'TOTAL':self.latest_request_id}
-            for request_id in self.requests:
-                r = self.requests[request_id]
-                if r.mode in req_counter:
-                    req_counter[r.mode] += 1
-                else:
-                    req_counter[r.mode] = 1
-            # print('Requests:')
-            # for mode in req_counter:
-                # print('\t'+mode+': '+str(req_counter[mode]))
+
             time1 = time2
 
         # dumping batch results
@@ -1025,7 +1016,28 @@ class Simulation:
         """
 
         if self.log:
+            print("\n")
             print("Timestamp " + str(self.time))
+            print("Taxis:\n")
+            print("\t Available: "+str(len(self.taxis_available)))
+            print("\t To request: " + str(len(self.taxis_to_request)))
+            print("\t To destination: " + str(len(self.taxis_to_destination)))
+            print("\n")
+            req_counter = {'TOTAL':self.latest_request_id}
+            for request_id in self.requests:
+                r = self.requests[request_id]
+                if r.mode in req_counter:
+                    req_counter[r.mode] += 1
+                else:
+                    req_counter[r.mode] = 1
+            print('Requests:')
+            for mode in req_counter:
+                print('\t'+mode+': '+str(req_counter[mode]))
+            print("\n")
+            print("Requests pending: ")
+            print(self.requests_pending)
+            print(self.requests_pending_deque)
+            print(self.requests_pending_deque_temporary)
 
         if (self.time > 0) and (self.time % self.reset_time == 0):
             # print("Going home!")
@@ -1066,6 +1078,7 @@ class Simulation:
         # reunite pending requests
         self.requests_pending_deque_temporary.reverse()
         self.requests_pending_deque.extendleft(self.requests_pending_deque_temporary)
+        self.requests_pending_deque_temporary = deque()
         # delete old requests from pending ones
         if self.time >= self.max_request_waiting_time and len(self.requests_pending_deque) > 0:
             while self.requests_pending_deque[0] in self.requests_pending_deque_batch[0]:
