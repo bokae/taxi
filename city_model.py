@@ -533,11 +533,11 @@ class Simulation:
 
             if taxi_id in self.taxis_to_destination:
                 # if somebody is sitting in it, finish request
-                self.dropoff_request(tx.actual_request_executing, going_home=True)
+                self.dropoff_request(tx.actual_request_executing, mode="going_home")
 
             if taxi_id in self.taxis_to_request:
                 # if it was only going towards a request, cancel it
-                self.dropoff_request(tx.actual_request_executing, cancel=True, going_home=True)
+                self.dropoff_request(tx.actual_request_executing, mode="cancel")
 
             self.taxis[taxi_id] = tx
 
@@ -734,7 +734,7 @@ class Simulation:
         if self.log:
             print('\tP ' + "request " + str(request_id) + ' taxi ' + str(t.taxi_id))
 
-    def dropoff_request(self, request_id, cancel=False, going_home=False):
+    def dropoff_request(self, request_id, mode="simple"):
         """
         Drop off passenger, when taxi reached request destination.
         
@@ -743,42 +743,44 @@ class Simulation:
         r = self.requests[request_id]
         t = self.taxis[r.taxi_id]
 
-        if not cancel:
-            # mark dropoff timestamp
+        if mode == "simple" or mode == "going_home":
+            # mark request as done
             r.timestamps['dropoff'] = self.time
             r.mode = 'done'
-            self.taxis_to_destination.remove(r.taxi_id)
-
-            # update request lists
             self.requests_in_progress.remove(request_id)
             t.requests_completed.add(request_id)
-        else:
-            t.next_destination = deque()
-            self.taxis_to_request.remove(r.taxi_id)
+            # remove taxi from to_destination list
+            self.taxis_to_destination.remove(r.taxi_id)
+        elif mode == "cancel":
+            # mark request as dropped
+            r.mode = 'dropped'
+            # remove request from progressing ones
             self.requests_in_progress.remove(request_id)
+            # clear taxi path
+            t.next_destination = deque()
+            # remove taxi from to_request list
+            self.taxis_to_request.remove(r.taxi_id)
 
-        # change taxi state to available
+        # update taxi lists
+        if mode=="going_home":
+            # (magic wand) Apparate taxi home!
+            t.x,t.y = t.home
+
+        # update global availability containers
+        self.taxis_available[r.taxi_id] = t
+        self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(r.taxi_id)
+
+        # update taxi internal states
         t.with_passenger = False
         t.available = True
         t.actual_request_executing = None
 
-        # update taxi lists
-        if going_home:
-            # (magic wand) Apparate taxi home!
-            t.x,t.y = t.home
-        # print('Adding taxi ' + str(taxi_id) + ' to A at ' + str(
-                # self.city.coordinate_dict_ij_to_c[t.x][t.y]) + '.')
-        self.city.A[self.city.coordinate_dict_ij_to_c[t.x][t.y]].add(r.taxi_id)
-        # print('New A ', self.city.A)
-        self.taxis_available[r.taxi_id] = t
-
-        # update request and taxi instances
+        # update request and taxi instances in global containers
         self.requests[request_id] = r
         self.taxis[r.taxi_id] = t
 
         if self.log:
             print("\tD request " + str(request_id) + ' taxi ' + str(t.taxi_id))
-
 
 
     def eval_taxi_income(self, taxi_id):
@@ -1080,8 +1082,8 @@ class Simulation:
         self.requests_pending_deque.extendleft(self.requests_pending_deque_temporary)
         self.requests_pending_deque_temporary = deque()
         # delete old requests from pending ones
-        if self.time >= self.max_request_waiting_time and len(self.requests_pending_deque) > 0:
-            while self.requests_pending_deque[0] in self.requests_pending_deque_batch[0]:
+        if self.time > self.max_request_waiting_time and len(self.requests_pending_deque) > 0:
+            while len(self.requests_pending_deque)>0 and (self.requests_pending_deque[0] in self.requests_pending_deque_batch[0]):
                 request_id = self.requests_pending_deque.popleft()
                 self.requests[request_id].mode = 'dropped'
 
