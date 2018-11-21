@@ -225,6 +225,7 @@ class ResultParser:
 
             # unioning all data from all timestamps, needed for global range min max values
             # for every metrics except for timestamp
+            print(res[res.index.map(lambda x: x != 'timestamp')].index.tolist())
             res_all = res[res.index.map(lambda x: x != 'timestamp')] \
                 .apply(lambda row: [e for l in row.tolist() for e in l], axis=1)
 
