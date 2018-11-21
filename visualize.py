@@ -117,9 +117,9 @@ class ResultParser:
         }
 
         self.superfluous = [
-            'trip_avg_length',
-            'trip_num_completed',
-            'trip_std_length'
+            # 'trip_avg_length',
+            # 'trip_num_completed',
+            # 'trip_std_length'
         ]
 
         print('Done.')
