@@ -356,7 +356,7 @@ class ResultVisualizer:
         # loading the available files for the results of the run
         self.rp = ResultParser(base)
         # saving results into a dataframe that is used in the visualizations
-        self.df = self.rp.prepare_all_data(force = True)
+        self.df = self.rp.prepare_all_data()
         self.last_figure_index = 0
 
         # defining standard colors for the results of the three algorithms
