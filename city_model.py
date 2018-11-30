@@ -632,7 +632,7 @@ class Simulation:
                 # make assignment
                 self.assign_request(request_id, taxi_id)
 
-        elif mode == "random_limited":
+        elif mode == "random_unlimited":
             # print('Nearest.')
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
