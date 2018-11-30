@@ -632,6 +632,35 @@ class Simulation:
                 # make assignment
                 self.assign_request(request_id, taxi_id)
 
+        elif mode == "random_limited":
+            # print('Nearest.')
+            while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
+
+                # select oldest request from deque
+                request_id = self.requests_pending_deque.popleft()
+                # print('Selecting oldest request ' + str(request_id))
+
+                # fetch request
+                r = self.requests[request_id]
+                # search for nearest free taxis
+                possible_taxi_ids = self.city.find_nearest_available_taxis(
+                    self.city.coordinate_dict_ij_to_c[r.ox][r.oy],
+                    mode="circle",
+                    radius=self.city.hard_limit
+                )
+
+                # print('Available taxis ', self.taxis_available.keys)
+                # print('Possible taxis ', possible_taxi_ids)
+
+                # if there were any taxis near
+                if len(possible_taxi_ids) > 0:
+                    # select taxi
+                    taxi_id = choice(possible_taxi_ids)
+                    self.assign_request(request_id, taxi_id)
+                else:
+                    # mark request as still pending
+                    self.requests_pending_deque_temporary.append(request_id)
+
         elif mode == "baseline_random_user_nearest_taxi":
             # print('Nearest.')
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
