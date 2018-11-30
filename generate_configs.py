@@ -80,6 +80,7 @@ if __name__ == '__main__':
         # inserting different geometries into the config dict
         temp.pop('request_origin_distributions', None)
         temp.pop('request_destination_distributions', None)
+        temp.pop('reset_time',None)
         temp.update(geom_dict[geom])
 
         # avg path lengths in the system
