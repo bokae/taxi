@@ -1,12 +1,12 @@
 # make this file compact: 
-cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact.json
+# cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact.json
 # single center, identical distributions for origin and destination
 {
 	"request_origin_distributions": [
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":20
+			"sigma":10
 		}
 	]
 }
@@ -15,7 +15,7 @@ cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":40
+			"sigma":20
 		}
 	]
 }
@@ -26,14 +26,14 @@ cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":20
+			"sigma":6
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":40
+			"sigma":12
 		}
 	]
 }
@@ -43,14 +43,14 @@ cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":40
+			"sigma":12
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":20
+			"sigma":6
 		}
 	]
 }
@@ -61,19 +61,19 @@ cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":40
+			"sigma":12
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
-			"strength":5,
-			"sigma":20
+			"strength":35,
+			"sigma":8
 		},
 		{
 			"location":[35,35],
-			"strength":15,
-			"sigma":3
+			"strength":5,
+			"sigma":2
 		}
 	]
 
@@ -83,20 +83,20 @@ cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact
 	"request_origin_distributions": [
 		{
 			"location":[20,20],
-			"strength":5,
-			"sigma":20
+			"strength":35,
+			"sigma":8
 		},
 		{
 			"location":[35,35],
-			"strength":15,
-			"sigma":3
+			"strength":5,
+			"sigma":2
 		}
 	],
 	"request_destination_distributions": [
 		{
 			"location":[20,20],
 			"strength":1,
-			"sigma":40
+			"sigma":12
 		}	
 	]
 }
@@ -104,14 +104,14 @@ cat geom_specification.json | grep -v "#" | jq -c . > geom_specification_compact
 {
 	"request_origin_distributions": [
 		{
-			"location":[15,15],
+			"location":[12,12],
 			"strength":5,
-			"sigma":20
+			"sigma":8
 		},
 		{
-			"location":[25,25],
+			"location":[28,28],
 			"strength":5,
-			"sigma":20
+			"sigma":8
 		}
 	]
 }

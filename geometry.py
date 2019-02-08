@@ -27,12 +27,12 @@ class City:
             grid coordinates of the taxi base
 
         request_origin_distributions : list of dicts
-            stores the distribution of request origins on the grid
-            describes the 2D Gaussians from which the total distribution is created
+            encodes the distribution of request origins (2D Gaussians) on the grid
+
             each Gaussian is given by its location, standard deviation and strength
                 {"location":[int,int], "sigma":float, "strength":float}
-            
 
+            random samples are drawn from these Gaussians proportional to the strength
 
 
         Attributes
@@ -41,7 +41,7 @@ class City:
             placeholder to store list of available taxi_ids at their actual positions
 
         N : np.array of sets
-            stores neighborhoods for faster access
+            stores grid neighborhoods for faster access
 
         n : int
             width of grid
@@ -50,7 +50,7 @@ class City:
             height of grid
 
         length : int
-            length of coordstacks that help in random origin and destination generation
+            length of coordstacks that speed up random origin and destination generation
         """
 
         # grid dimensions
@@ -65,26 +65,32 @@ class City:
         # list that stores taxi_id of available taxis at the
         # specific position on the grid
         # we initialize this array with empty sets
+        # it can be a list because of the continuous indexing scheme
         self.A = [set() for _ in range(self.n*self.m)]
 
-        # storing neighbors
+        # storing neighbors in a dict for fast access
         self.N = {c: self.neighbors(c) for c in range(self.n*self.m)}
 
         # generating stacks for request coordinate choice
 
         self.request_p = deque([])
 
+        # deprecated distribution around base
         if "base_sigma" in config:
             self.request_origin_distributions = [
                 {"location": self.base_coords, "sigma": config["base_sigma"], "strength": 1}]
 
+        # current distributions defined in the config file
         if 'request_origin_distributions' in config:
             # origins
             self.request_origin_distributions = config['request_origin_distributions']
+        # one deque for each distribution the final distribution is composed of
         self.request_origin_coordstacks = \
             [deque([]) for i in range(len(self.request_origin_distributions))]
+        # extracting strengths
         self.request_origin_strengths = \
             [distr["strength"] for distr in self.request_origin_distributions]
+        # creating probabilities from strengths
         self.request_origin_probabilities = \
             np.cumsum(np.array(self.request_origin_strengths)/sum(self.request_origin_strengths))
 
@@ -106,6 +112,7 @@ class City:
             self.request_destination_probabilities = \
                 np.cumsum(self.request_origin_probabilities)
 
+        # if taxis start from a random place
         self.taxi_home_coordstack = deque([])
 
         if "hard_limit" in config:
@@ -115,6 +122,8 @@ class City:
 
         if 'length' not in config:
             self.length = int(2e5)
+        else:
+            self.length = config["length"]
 
         # pre-storing coordinates
         # dicts for converting between real positions and their labels
@@ -136,18 +145,20 @@ class City:
             self.bfs_trees[c] = self.create_BFS_tree(c)
 
     def create_one_request_coord(self):
-        # here we randomly choose an origin and a destination for the request
-        # the random coordinates are pre-stored in several deques for faster access
-        # if there are no more pregenerated coordinates in the deques, we generate some more
-        # probability stack
-        try:
-            p = self.request_p.pop()
-        except IndexError:
-            self.request_p.extend(np.random.random(self.length))
-            p = self.request_p.pop()
-
-        # binning the generated random numbers
-        ind = np.digitize(p, self.request_origin_probabilities)
+        # binning the generated random numbers from request_p for origin distributions
+        # these numbers are going to decode from which distribution to choose in the given step
+        if len(self.request_origin_probabilities)>1:
+            try:
+                p = self.request_p.pop()
+            except IndexError:
+                self.request_p.extend(np.random.random(self.length))
+                p = self.request_p.pop()
+            #print("Choosing from orig gausses.")
+            #print(p,self.request_origin_probabilities)
+            ind = np.digitize(p, self.request_origin_probabilities)
+            #print(ind)
+        else:
+            ind=0
 
         try:
             ox, oy = self.request_origin_coordstacks[ind].pop()
@@ -157,14 +168,20 @@ class City:
             )
             ox, oy = self.request_origin_coordstacks[ind].pop()
 
-        # destination
-        try:
-            p = self.request_p.pop()
-        except IndexError:
-            self.request_p.extend(np.random.random(2e5))
-            p = self.request_p.pop()
+        # binning the generated random numbers from request_p for destination distributions
+        if len(self.request_destination_probabilities)>1:
+            # destination
+            try:
+                p = self.request_p.pop()
+            except IndexError:
+                self.request_p.extend(np.random.random(self.length))
+                p = self.request_p.pop()
+            #print("Choosing from dest gausses.")
+            ind = np.digitize(p, self.request_destination_probabilities)
+            #print(p, self.request_destination_probabilities, ind)
+        else:
+            ind = 0
 
-        ind = np.digitize(p, self.request_destination_probabilities)
 
         try:
             dx, dy = self.request_destination_coordstacks[ind].pop()
