@@ -45,7 +45,7 @@ if __name__ == '__main__':
     geom_dict_all = {i: json.loads(geom.strip('\n')) for i, geom
                  in enumerate(open("geom_specification_compact.json").readlines())}
 
-    geom_dict = {i: geom_dict_all[i] for i in geom_dict.keys()}
+    geom_dict = {i: geom_dict_all[i] for i in geom_dict_all.keys()}
 
     # common parameters
     temp = json.load(open(base))
