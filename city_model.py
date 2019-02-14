@@ -1032,7 +1032,7 @@ class Simulation:
 
         # dumping batch results
         f = open(data_path + '/run_' + run_id + '_aggregates.csv','a')
-        pd.DataFrame.from_dict(results).to_csv(f)
+        pd.DataFrame.from_dict(results).to_csv(f,float_format="%.4f")
         f.write('\n')
         f.close()
 
