@@ -35,7 +35,7 @@ if __name__ == '__main__':
     base = sys.argv[1]
 
     # different matching algorithms
-    alg1 = "random_unilimited"
+    alg1 = "random_unlimited"
     alg2 = "random_limited"
     alg3 = "nearest"
     alg4 = "poorest"
