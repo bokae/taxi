@@ -613,7 +613,7 @@ class Simulation:
         if self.log:
             print('Matching algorithm.')
 
-        if mode == "baseline_random_user_random_taxi":
+        if mode == "random_unlimited":
 
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
                 #if self.log:
@@ -632,7 +632,7 @@ class Simulation:
                 # make assignment
                 self.assign_request(request_id, taxi_id)
 
-        elif mode == "random_unlimited":
+        elif mode == "random_limited":
             # print('Nearest.')
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
@@ -661,7 +661,7 @@ class Simulation:
                     # mark request as still pending
                     self.requests_pending_deque_temporary.append(request_id)
 
-        elif mode == "baseline_random_user_nearest_taxi":
+        elif mode == "nearest":
             # print('Nearest.')
             while len(self.requests_pending_deque) > 0 and len(self.taxis_available) > 0:
 
@@ -672,7 +672,8 @@ class Simulation:
                 # fetch request
                 r = self.requests[request_id]
                 # search for nearest free taxis
-                possible_taxi_ids = self.city.find_nearest_available_taxis(self.city.coordinate_dict_ij_to_c[r.ox][r.oy])
+                possible_taxi_ids = self.city.find_nearest_available_taxis(
+                    self.city.coordinate_dict_ij_to_c[r.ox][r.oy])
 
                 # print('Available taxis ', self.taxis_available.keys)
                 # print('Possible taxis ', possible_taxi_ids)
@@ -686,7 +687,7 @@ class Simulation:
                     # mark request as still pending
                     self.requests_pending_deque_temporary.append(request_id)
 
-        elif mode == "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit":
+        elif mode == "poorest":
             # print('Poorest.')
             # always order taxi that has earned the least money so far
             # but choose only from the nearest ones
