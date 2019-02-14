@@ -35,18 +35,17 @@ if __name__ == '__main__':
     base = sys.argv[1]
 
     # different matching algorithms
-    #alg1 = "baseline_random_user_random_taxi"
-    #alg2 = "baseline_random_user_nearest_taxi"
-    #alg3 = "levelling2_random_user_nearest_poorest_taxi_w_waiting_limit"
-    #alg_list = [alg1, alg2, alg3]
-
-    alg_list = ["random_unlimited"]
+    alg1 = "random_unilimited"
+    alg2 = "random_limited"
+    alg3 = "nearest"
+    alg4 = "poorest"
+    alg_list = [alg1, alg2, alg3, alg4]
 
     # different geometries
     geom_dict_all = {i: json.loads(geom.strip('\n')) for i, geom
                  in enumerate(open("geom_specification_compact.json").readlines())}
 
-    geom_dict = {i: geom_dict_all[i] for i in [4,5]}
+    geom_dict = {i: geom_dict_all[i] for i in geom_dict.keys()}
 
     # common parameters
     temp = json.load(open(base))
@@ -68,10 +67,11 @@ if __name__ == '__main__':
     # time unit in seconds
     tu = scale/10*v
 
-    # five days in simulation units, supposing 8 working hours/day
-    simulation_time = round(0.01*5*8*3600/tu, 0)*100
+    # three days in simulation units, supposing 8 working hours/day
+    days = 5
+    simulation_time = round(0.01*days*8*3600/tu, 0)*100
     temp['max_time'] = simulation_time
-    temp['batch_size'] = int(simulation_time/80) # 16 sample points in each shift
+    temp['batch_size'] = int(simulation_time/(days*16)) # 16 sample points in each shift
 
     # reset taxi positions after an 8-hour shift
     reset_time = round(0.01*8*3600/tu, 0)*100
@@ -90,11 +90,10 @@ if __name__ == '__main__':
         # avg path lengths in the system
         temp['avg_request_lengths'] = avg_length(temp)
 
-#            ("go_back", "base", "false"),
-#            ("stay", "base", "false"),
-#            ("stay", "home", "false"),
-
         for behaviour, ic, reset in [
+            ("go_back", "base", "false"),
+            ("stay", "base", "false"),
+            ("stay", "home", "false"),
             ("stay", "home", "true")
         ]:
             temp.update({"behaviour": behaviour, "initial_conditions": ic})
