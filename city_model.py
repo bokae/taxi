@@ -15,6 +15,7 @@ from time import time, sleep
 
 import gzip
 import shutil
+import os
 
 # special data types
 from collections import deque
@@ -1035,8 +1036,8 @@ class Simulation:
             time1 = time2
 
         # dumping batch results
-        f = open(data_path + '/run_' + run_id + '_aggregates.csv','a')
-        pd.DataFrame.from_dict(results).to_csv(f,float_format="%.4f")
+        f = open(data_path + '/run_' + run_id + '_aggregates.csv', 'a')
+        pd.DataFrame.from_dict(results).to_csv(f, float_format="%.4f")
         f.write('\n')
         f.close()
 
@@ -1047,6 +1048,7 @@ class Simulation:
             shutil.copyfileobj(f1, f2)
             f1.close()
             f2.close()
+            os.remove(data_path + '/run_' + run_id + file)
 
         print("Done.\n")
 
