@@ -13,6 +13,9 @@ from random import choice, shuffle
 import matplotlib.pyplot as plt
 from time import time, sleep
 
+import gzip
+import shutil
+
 # special data types
 from collections import deque
 from queue import Queue
@@ -1037,7 +1040,13 @@ class Simulation:
         f.write('\n')
         f.close()
 
-
+        # compressing written objects
+        for file in ['_per_taxi_metrics.json', '_per_request_metrics.json', '_aggregates.csv']:
+            f1 = open(data_path + '/run_' + run_id + file, 'rb')
+            f2 = gzip.open(data_path + '/run_' + run_id + file + '.gz', 'wb')
+            shutil.copyfileobj(f1, f2)
+            f1.close()
+            f2.close()
 
         print("Done.\n")
 
@@ -1182,13 +1191,11 @@ class Measurements:
         # for the taxis
 
         # average trip lengths per taxi
-        # standard deviation of trip lengths per taxi
         trip_avg_length = []
         trip_std_length = []
-        trip_avg_price = []
+        incomes = []
         trip_num_completed = []
 
-        ratio_online = []
         ratio_serving = []
         ratio_to_request = []
         ratio_cruising = []
@@ -1206,13 +1213,13 @@ class Measurements:
                 req_lengths.append(length)
 
             if len(req_lengths) > 0:
-                trip_avg_length.append(np.nanmean(req_lengths))
-                trip_std_length.append(np.nanstd(req_lengths))
+                trip_avg_length.append( round(np.nanmean(req_lengths), 4) )
+                trip_std_length.append( round(np.nanstd(req_lengths), 4) )
             else:
                 trip_avg_length.append(0)
                 trip_std_length.append(np.nan)
             trip_num_completed.append(len(req_prices))
-            trip_avg_price.append(self.simulation.eval_taxi_income(taxi_id))
+            incomes.append(self.simulation.eval_taxi_income(taxi_id))
 
             s = taxi.time_serving
             w = taxi.time_waiting
@@ -1220,11 +1227,15 @@ class Measurements:
             c = taxi.time_cruising
             total = s+w+r+c
 
-            ratio_serving.append(s / total)
-            ratio_cruising.append(c / total)
-            ratio_online.append((s+r) / total)
-            ratio_waiting.append(w / total)
-            ratio_to_request.append(r / total)
+            # ratio_serving.append( round( s / total, 4) )
+            # ratio_cruising.append( round( c / total, 4) )
+            # ratio_waiting.append( round( w / total, 4) )
+            # ratio_to_request.append( round( r / total, 4) )
+            
+            time_serving.append( s )
+            time_cruising.append( c )
+            time_waiting.append( w )
+            time_to_request.append( r )
 
             position.append([int(taxi.x), int(taxi.y)])
 
@@ -1232,13 +1243,12 @@ class Measurements:
             "timestamp": self.simulation.time,
             "trip_avg_length": trip_avg_length,
             "trip_std_length": trip_std_length,
-            "trip_avg_price": trip_avg_price,
+            "trip_income": income,
             "trip_num_completed": trip_num_completed,
-            "ratio_serving": ratio_serving,
-            "ratio_cruising": ratio_cruising,
-            "ratio_online": ratio_online,
-            "ratio_waiting": ratio_waiting,
-            "ratio_to_request": ratio_to_request,
+            "time_serving": time_serving,
+            "time_cruising": time_cruising,
+            "time_waiting": time_waiting,
+            "time_to_request": time_to_request,
             "position": position
         }
 
@@ -1273,14 +1283,15 @@ class Measurements:
 
         return {
             "timestamp": self.simulation.time,
-            "request_completed": np.mean(request_completed),
-            "request_last_waiting_times": np.mean(request_last_waiting_times),
-            "request_lengths": np.mean(request_lengths)#,
+            "request_completed": round(np.mean(request_completed), 4),
+            "request_last_waiting_times": round(np.mean(request_last_waiting_times), 4),
+            "request_lengths": round(np.mean(request_lengths), 4)#,
             #"dropped_coords": dropped_coords
         }
 
     @staticmethod
     def read_aggregated_metrics(per_taxi_metrics, per_request_metrics):
+
         metrics = {"timestamp": per_taxi_metrics["timestamp"]}
 
         for k in per_taxi_metrics:
@@ -1288,13 +1299,6 @@ class Measurements:
                 if k[5] == 'a':
                     metrics['avg_'+k] = np.nanmean(per_taxi_metrics[k])
                     metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-            elif k[0:5] == 'ratio':
+            elif k[0:5] == 'ratio' or k[0:4] == 'time':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-
-        for k in per_request_metrics:
-            if k[0] != 'd' or k[0] != 't':
-                metrics['avg_' + k] = np.nanmean(per_request_metrics[k])
-                metrics['std_' + k] = np.nanstd(per_request_metrics[k])
-
-        return metrics
