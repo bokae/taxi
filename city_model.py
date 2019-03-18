@@ -999,7 +999,7 @@ class Simulation:
 
         print("Running simulation with run_id "+run_id+".")
         print("Batch time "+str(self.batch_size)+".")
-        print("Number of iterations "+str(self.num_iter)+".")
+        print("Number of itetimens "+str(self.num_iter)+".")
         print("Total time simulated "+str(self.batch_size*self.num_iter)+".")
         print("Starting...")
 
@@ -1174,18 +1174,18 @@ class Measurements:
         number_of_requests_completed: list of ints
             how many passengers has the taxi served
 
-        ratio_online: list of floats
-            ratio of useful travel time from overall time per taxi
+        time_online: list of floats
+            time of useful travel time from overall time per taxi
             online/(online+to_request+cruising+waiting)
 
-        ratio_to_request: list of floats
-            ratio of empty travel time (from assignment to pickup)
+        time_to_request: list of floats
+            time of empty travel time (from assignment to pickup)
 
-        ratio_cruising: list of floats
-            ratio of travelling with no assigned request
+        time_cruising: list of floats
+            time of travelling with no assigned request
 
-        ratio_waiting: list of floats
-            ratio of standing at a post with no assigned request
+        time_waiting: list of floats
+            time of standing at a post with no assigned request
         """
 
         # for the taxis
@@ -1196,10 +1196,16 @@ class Measurements:
         incomes = []
         trip_num_completed = []
 
-        ratio_serving = []
-        ratio_to_request = []
-        ratio_cruising = []
-        ratio_waiting = []
+        # time_serving = []
+        # time_to_request = []
+        # time_cruising = []
+        # time_waiting = []
+        
+        time_serving = []
+        time_to_request = []
+        time_cruising = []
+        time_waiting = []
+        
         position = []
 
         for taxi_id in self.simulation.taxis:
@@ -1227,10 +1233,10 @@ class Measurements:
             c = taxi.time_cruising
             total = s+w+r+c
 
-            # ratio_serving.append( round( s / total, 4) )
-            # ratio_cruising.append( round( c / total, 4) )
-            # ratio_waiting.append( round( w / total, 4) )
-            # ratio_to_request.append( round( r / total, 4) )
+            # time_serving.append( round( s / total, 4) )
+            # time_cruising.append( round( c / total, 4) )
+            # time_waiting.append( round( w / total, 4) )
+            # time_to_request.append( round( r / total, 4) )
             
             time_serving.append( s )
             time_cruising.append( c )
@@ -1243,7 +1249,7 @@ class Measurements:
             "timestamp": self.simulation.time,
             "trip_avg_length": trip_avg_length,
             "trip_std_length": trip_std_length,
-            "trip_income": income,
+            "trip_income": incomes,
             "trip_num_completed": trip_num_completed,
             "time_serving": time_serving,
             "time_cruising": time_cruising,
@@ -1299,6 +1305,6 @@ class Measurements:
                 if k[5] == 'a':
                     metrics['avg_'+k] = np.nanmean(per_taxi_metrics[k])
                     metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-            elif k[0:5] == 'ratio' or k[0:4] == 'time':
+            elif k[0:5] == 'time' or k[0:4] == 'time':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
