@@ -1037,6 +1037,7 @@ class Simulation:
 
         # dumping batch results
         f = open(data_path + '/run_' + run_id + '_aggregates.csv', 'a')
+        print(results)
         pd.DataFrame.from_dict(results).to_csv(f, float_format="%.4f")
         f.write('\n')
         f.close()
@@ -1240,10 +1241,10 @@ class Measurements:
             # time_waiting.append( round( w / total, 4) )
             # time_to_request.append( round( r / total, 4) )
             
-            time_serving.append( s )
-            time_cruising.append( c )
-            time_waiting.append( w )
-            time_to_request.append( r )
+            time_serving.append(s)
+            time_cruising.append(c)
+            time_waiting.append(w)
+            time_to_request.append(r)
 
             position.append([int(taxi.x), int(taxi.y)])
 
