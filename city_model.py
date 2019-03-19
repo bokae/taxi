@@ -1304,10 +1304,9 @@ class Measurements:
         metrics = {"timestamp": per_taxi_metrics["timestamp"]}
 
         for k in per_taxi_metrics:
-            if k[0:4] == 'trip':
-                if k[5] == 'a':
-                    metrics['avg_'+k] = np.nanmean(per_taxi_metrics[k])
-                    metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
-            elif k[0:5] == 'time' or k[0:4] == 'time':
+            if k[0:6] == 'trip_i':
+                metrics['avg_'+k] = np.nanmean(per_taxi_metrics[k])
+                metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
+            elif k[0:4] == 'time':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
