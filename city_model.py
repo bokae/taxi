@@ -1310,3 +1310,5 @@ class Measurements:
             elif k[0:4] == 'time':
                 metrics['avg_' + k] = np.nanmean(per_taxi_metrics[k])
                 metrics['std_' + k] = np.nanstd(per_taxi_metrics[k])
+
+        return metrics
