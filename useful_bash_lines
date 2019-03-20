@@ -1,0 +1,34 @@
+###################
+# listing those new runs for which the aggregate.csv is too short
+cat slurm-* | grep 2019 | cut -d" " -f5 | tr -d "." > needs_repair
+# repairing them
+for run_id in `cat needs_repair`; do python repair.py $run_id; done
+# counting those that have already been repaired
+rm temp; for run_id in `cat needs_repair`; do du -h results/run_"$run_id"_aggregates.csv.gz | cut -d"       " -f1 >> temp; done; cat temp | sort | uniq -c
+####################
+
+# backreferencing in sed
+sed 's/\(.*\)/\1\.conf/g'
+# changing single quotes to double quotes in sed
+sed "s/\'/\"/g"
+# cutting the last column
+ls -lt | grep Feb | rev | cut -f1 -d" " | rev
+# add a field to jq from outside variable 'f'
+jq --arg f $f '. + {run_id: $f}'
+
+
+# the result files I am working with right now
+cd results; ls | grep behav_stay | grep ic_home | grep reset_false | grep d_400 | grep alg_nearest | grep geom_0 | grep per_taxi
+
+# merging all config files into a line-by-line compact json contanining run_id
+for f in `ls | grep 2019_02`; do cat $f | jq --arg f $f -c '. + {run_id : $f}' >> 2019_all.conf; echo $f; done
+
+
+# those files that have already been run
+for file in `ls -lt | grep Feb | rev | cut -f1 -d" " | rev`; do cat $file | grep 2019 | cut -d" " -f5 | tr -d "." | sed 's/\(.*\)/\1\.conf/g' >> ../have_run_unsorted; done
+# sorting them
+cat have_run_unsorted | sort -S 10G > have_run
+# ids to run
+cd configs; find 2019_ | sort -S 10G > to_run
+# comparing the two lists, getting ids that are missing from the runs
+comm to_run have_run -23 > to_do
