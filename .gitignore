@@ -2,3 +2,6 @@
 configs/*_*_*.conf
 results/*
 !configs/geomet*
+slurm/*
+slurm-*
+*.pyc
