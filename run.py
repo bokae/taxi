@@ -14,10 +14,10 @@ from city_model import *
 import sys
 import os
 
-if (len(sys.argv)>1) and (os.path.exists('configs/'+sys.argv[1]+'.conf')):
-    run_id=sys.argv[1]
-    config=json.load(open('configs/'+run_id+'.conf'))
-    s = Simulation(**config) # create a Simulation instance
+if (len(sys.argv) > 1) and (os.path.exists('configs/'+sys.argv[1]+'.conf')):
+    run_id = sys.argv[1]
+    config = json.load(open('configs/'+run_id+'.conf'))
+    s = Simulation(**config)  # create a Simulation instance
     s.run_batch(run_id)
 else:
     print('Please give an existing config file from the "./configs" folder!')
