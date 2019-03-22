@@ -1014,8 +1014,12 @@ class Simulation:
             for k in range(self.batch_size):
                 self.step_time("")
 
+
             ptm = measurement.read_per_taxi_metrics()
             prm = measurement.read_per_request_metrics()
+
+            if i == 0:
+                ptm['taxi_homes'] = [t.home for t in self.taxis]
 
             # dumping per taxi metrics out (per batch)
             f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
