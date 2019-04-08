@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     # different geometries
     geom_dict_all = {i: json.loads(geom.strip('\n')) for i, geom
-                 in enumerate(open("configs/geom_specification_vienna_compact.json").readlines())}
+                 in enumerate(open("configs/geom_specification_compact_vienna.json").readlines())}
 
     geom_dict = {i: geom_dict_all[i] for i in geom_dict_all.keys()}
 
