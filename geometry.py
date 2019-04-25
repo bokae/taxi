@@ -6,6 +6,7 @@ import json
 # special data types
 from collections import deque
 from queue import Queue
+from scipy.interpolate import interp1d
 
 class City:
     """
@@ -144,6 +145,31 @@ class City:
         for c in range(self.n*self.m):
             self.bfs_trees[c] = self.create_BFS_tree(c)
 
+        # pre-storing inverse CDFs for arbitrary distributions
+        for d in self.request_origin_distributions:
+            if "x" in d:
+                r = d["x"]
+                fr_unnormed = d["y"]
+                norm = np.sum(2 * np.pi * r * fr_unnormed)
+                fr_latent = 2 * np.pi * r * fr_unnormed / norm
+                i = np.cumsum(fr_latent)
+                cdf_inv = interp1d(i, r)
+                d["cdf_inv"] = cdf_inv
+                d["interp_min"] = np.min(i)
+                d["interp_max"] = np.max(i)
+
+        for d in self.request_destination_distributions:
+            if "x" in d:
+                r = d["x"]
+                fr_unnormed = d["y"]
+                norm = np.sum(2 * np.pi * r * fr_unnormed)
+                fr_latent = 2 * np.pi * r * fr_unnormed / norm
+                i = np.cumsum(fr_latent)
+                cdf_inv = interp1d(i, r)
+                d["cdf_inv"] = cdf_inv
+                d["interp_min"] = np.min(i)
+                d["interp_max"] = np.max(i)
+
     def create_one_request_coord(self):
         # binning the generated random numbers from request_p for origin distributions
         # these numbers are going to decode from which distribution to choose in the given step
@@ -153,12 +179,9 @@ class City:
             except IndexError:
                 self.request_p.extend(np.random.random(self.length))
                 p = self.request_p.pop()
-            #print("Choosing from orig gausses.")
-            #print(p,self.request_origin_probabilities)
             ind = np.digitize(p, self.request_origin_probabilities)
-            #print(ind)
         else:
-            ind=0
+            ind = 0
 
         try:
             ox, oy = self.request_origin_coordstacks[ind].pop()
@@ -176,12 +199,9 @@ class City:
             except IndexError:
                 self.request_p.extend(np.random.random(self.length))
                 p = self.request_p.pop()
-            #print("Choosing from dest gausses.")
             ind = np.digitize(p, self.request_destination_probabilities)
-            #print(p, self.request_destination_probabilities, ind)
         else:
             ind = 0
-
 
         try:
             dx, dy = self.request_destination_coordstacks[ind].pop()
@@ -193,7 +213,8 @@ class City:
 
         return ox, oy, dx, dy
 
-    def measure_distance(self, source, destination):
+    @staticmethod
+    def measure_distance(source, destination):
         """
         Measure distance on the grid between two points.
 
@@ -208,7 +229,8 @@ class City:
 
         return np.dot(np.abs(np.array(destination) - np.array(source)), [1, 1])
 
-    def create_path(self, source, destination):
+    @staticmethod
+    def create_path(source, destination):
         """
         Choose a random shortest path between source and destination.
 
@@ -259,7 +281,7 @@ class City:
         Parameters
         ----------
 
-        coordinates : [int,int]
+        c : [int,int]
             input grid coordinate
 
         Returns
@@ -285,13 +307,27 @@ class City:
         return int(c/self.n), c % self.n
 
     #@profile
-    def generate_coords(self, **gauss_spec):
+    def generate_coords(self, **distr_spec):
 
-        temp = map(
-            lambda t: (int(round(t[0]*gauss_spec["sigma"], 0)+gauss_spec["location"][0]),
-                       int(round(t[1]*gauss_spec["sigma"], 0))+gauss_spec["location"][1]),
-            np.random.normal(size=(self.length, 2))
-        )
+        if "sigma" in distr_spec:
+            temp = map(
+                lambda t: (int(round(t[0]*distr_spec["sigma"], 0)+distr_spec["location"][0]),
+                           int(round(t[1]*distr_spec["sigma"], 0))+distr_spec["location"][1]),
+                np.random.normal(size=(self.length, 2))
+            )
+        else:
+            u = np.random.uniform(size=(self.length,))
+            u = u[np.where((distr_spec["interp_min"] < u) & (distr_spec["interp_max"] > u))]
+            phi = 2 * np.pi * np.random.uniform(size=np.size(u))
+            x = distr_spec["cdf_inv"](u) * np.cos(phi)
+            y = distr_spec["cdf_inv"](u) * np.sin(phi)
+
+            temp = map(
+                lambda t: (int(round(t[0], 0)+distr_spec["location"][0]),
+                           int(round(t[1], 0)+distr_spec["location"][1])),
+                zip(x, y)
+            )
+
         temp = filter(lambda n: (0 <= n[0]) and (self.n > n[0]) and (0 <= n[1]) and (self.m > n[1]), temp)
 
         return temp
