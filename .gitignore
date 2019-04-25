@@ -5,3 +5,5 @@ results/*
 slurm/*
 slurm-*
 *.pyc
+.idea/*
+.idea
