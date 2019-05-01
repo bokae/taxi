@@ -14,134 +14,180 @@ import os
 from city_model import City
 
 
-def avg_length(conf):
+class ConfigGenerator:
     """
-    Given a configuration dictionary, calculates average request length in a geometry.
+    :param base: file name for common configuration parameters
+    :param days: number of real days the simulation should run
     """
 
-    c = City(**conf)
-    tt = [c.create_one_request_coord() for i in range(c.length)]
+    def __init__(self, base, days=5):
 
-    templ = []
-    for i in range(int(len(tt)/2)):
-        templ.append(np.abs(tt[2*i][0]-tt[2*i+1][0])+np.abs(tt[2*i][1]-tt[2*i+1][1]))
+        self.base = base
 
-    return round(np.mean(templ), 1)
+        # different matching algorithms
+        alg1 = "random_unlimited"
+        alg2 = "random_limited"
+        alg3 = "nearest"
+        alg4 = "poorest"
+        self.alg_list = [alg1, alg2, alg3, alg4]
+
+        # different geometries
+        geom_dict_all = {i: json.loads(geom.strip('\n')) for i, geom
+                         in enumerate(open("configs/geom_specification_compact.json").readlines())}
+
+        self.geom_dict = {i: geom_dict_all[i] for i in geom_dict_all.keys()}
+
+        # common parameters
+        self.common = json.load(open('configs/' + base))
+
+        # =====================
+        # global parameters
+        # =====================
+
+        # 1 distance unit in meters
+        self.scale = 100
+
+        # system volume
+        self.V = self.common['n']*self.common['m']*self.scale**2
+
+        # velocity of taxis in distance unt per time unit
+        # should correspond to 36 km/h!!!
+        self.v = 1
+    
+        # time unit in seconds
+        self.tu = self.scale/10*self.v
+    
+        # three days in simulation units, supposing 8 working hours/day
+        simulation_time = round(0.01*days*8*3600/self.tu, 0)*100
+        self.common['max_time'] = simulation_time
+        self.common['batch_size'] = int(simulation_time/(days*16)) # 16 sample points in each shift
+    
+        # reset taxi positions after an 8-hour shift
+        self.reset_time = round(0.01*8*3600/self.tu, 0)*100
+
+        self.behav_types = [("go_back", "base", "false"),
+            ("stay", "base", "false"),
+            ("stay", "home", "false"),
+            ("stay", "home", "true")]
+
+    @staticmethod
+    def avg_length(conf):
+        """
+        Given a configuration dictionary, calculates average request length in a geometry.
+        """
+
+        c = City(**conf)
+        tt = [c.create_one_request_coord() for i in range(c.length)]
+
+        templ = []
+        for i in range(int(len(tt) / 2)):
+            templ.append(np.abs(tt[2 * i][0] - tt[2 * i + 1][0]) + np.abs(tt[2 * i][1] - tt[2 * i + 1][1]))
+
+        return round(np.mean(templ), 1)
+
+    def generate_config(self, d, R, alg, geom, behav_type):
+        """
+        Parameters
+        ----------
+        d : 
+        R : 
+        alg : 
+        geom : 
+        behav_type : 
+
+        Returns
+        -------
+
+        """
+        
+        conf = self.common
+        
+        conf.pop('request_origin_distributions', None)
+        conf.pop('request_destination_distributions', None)
+
+        conf.update(self.geom_dict[geom])
+        conf['geom'] = geom
+
+        # parameters
+        conf['R'] = round(R, 2)
+        conf['d'] = round(d, 0)
+
+        # d = \sqrt(V/Nt)
+        N = int(round(self.V / d ** 2))
+        conf['num_taxis'] = N
+
+        conf['avg_request_lengths'] = self.avg_length(conf)
+
+        llambda = int(round(N * self.v * R / conf['avg_request_lengths'], 0))
+        if llambda == 0:
+            return
+
+        conf['request_rate'] = llambda
+
+
+
+        if type(alg)==int:
+            conf['alg'] = self.alg_list[alg]
+        else:
+            conf["alg"] = alg
+
+        behaviour, ic, reset = self.behav_types[behav_type]
+        conf.update({"behaviour": behaviour, "initial_conditions": ic})
+        conf['reset'] = reset
+        if reset == 'true':
+            conf.update({"reset_time": g.reset_time})
+        else:
+            conf.pop("reset_time", None)
+
+        return conf
+
+    def dump_config(self, conf):
+        # request rate
+        R_string = ('%.2f' % conf['R']).replace('.', '_')
+        d_string = '%d' % conf['d']
+
+        # filename
+        fname = self.base.split('.')[0] + \
+             '_d_' + d_string + \
+             '_R_' + R_string + \
+             '_alg_' + conf['alg'] + \
+             '_geom_' + str(conf['geom']) + \
+             '_behav_' + conf['behaviour'] + \
+             '_ic_' + conf['initial_conditions'] + \
+             '_reset_' + conf['reset'] + \
+             '.conf'
+
+        content = json.dumps(conf, indent=4, separators=(',', ': ')) + '\n'
+
+        return fname, content
 
 
 if __name__ == '__main__':
-    os.chdir('configs')
 
-    base = sys.argv[1]
-
-    # different matching algorithms
-    alg1 = "random_unlimited"
-    alg2 = "random_limited"
-    alg3 = "nearest"
-    alg4 = "poorest"
-    alg_list = [alg1, alg2, alg3, alg4]
-
-    # different geometries
-    geom_dict_all = {i: json.loads(geom.strip('\n')) for i, geom
-                 in enumerate(open("geom_specification_compact.json").readlines())}
-
-    geom_dict = {i: geom_dict_all[i] for i in geom_dict_all.keys()}
-
-    # common parameters
-    temp = json.load(open(base))
-
-    # =====================
-    # global parameters
-    # =====================
-
-    # 1 distance unit in meters
-    scale = 100
-
-    # system volume
-    V = temp['n']*temp['m']*scale**2
-
-    # velocity of taxis in distance unt per time unit
-    # should correspond to 36 km/h!!!
-    v = 1
-
-    # time unit in seconds
-    tu = scale/10*v
-
-    # three days in simulation units, supposing 8 working hours/day
-    days = 5
-    simulation_time = round(0.01*days*8*3600/tu, 0)*100
-    temp['max_time'] = simulation_time
-    temp['batch_size'] = int(simulation_time/(days*16)) # 16 sample points in each shift
-
-    # reset taxi positions after an 8-hour shift
-    reset_time = round(0.01*8*3600/tu, 0)*100
-
+    g = ConfigGenerator(sys.argv[1])
+ 
     # ====================================================
     # generate configs corresponding to parameter matrix
     # ====================================================
 
-    for geom in sorted(geom_dict.keys()):
-        # inserting different geometries into the config dict
-        temp.pop('request_origin_distributions', None)
-        temp.pop('request_destination_distributions', None)
-        temp.pop('reset_time', None)
-        temp.update(geom_dict[geom])
+    for geom in sorted(g.geom_dict.keys()):
 
-        # avg path lengths in the system
-        temp['avg_request_lengths'] = avg_length(temp)
-
-        for behaviour, ic, reset in [
-            ("go_back", "base", "false"),
-            ("stay", "base", "false"),
-            ("stay", "home", "false"),
-            ("stay", "home", "true")
-        ]:
-            temp.update({"behaviour": behaviour, "initial_conditions": ic})
-
-            if reset == 'true':
-                temp.update({"reset_time": reset_time})
-
+        for behav_type in range(len(g.behav_types)):
             # sweeping through a range of R and d systematically
-
-            # d = \sqrt(V/Nt)
             d_list = list(np.linspace(50, 400, 11))
             for d in d_list:
-                N = int(round(V/d**2))
-                temp['num_taxis'] = N
 
                 # different ratios
                 R_list = list(np.linspace(0.05, 1, 20))
                 for R in R_list:
-                    # request rate
-                    llambda = int(round(N*v*R / temp['avg_request_lengths'], 0))
-                    R_string = ('%.2f' % R).replace('.', '_')
-                    d_string = '%d' % d
 
-                    # parameters
-                    temp['request_rate'] = llambda
-                    temp['R'] = round(R, 2)
-                    temp['d'] = round(d, 0)
-
-                    if llambda > 0:
                         # inserting different algorithms
-                        for alg in alg_list:
-                            temp['matching'] = alg
+                        for alg in g.alg_list:
 
-                            # filename
-                            output = base.split('.')[0] + \
-                                '_d_' + d_string + \
-                                '_R_' + R_string + \
-                                '_alg_' + alg + \
-                                '_geom_' + str(geom) + \
-                                '_behav_' + behaviour + \
-                                '_ic_' + ic + \
-                                '_reset_' + reset + \
-                                '.conf'
+                            conf = g.generate_config(d, R, alg, geom, behav_type)
+                            fname,content = g.dump_config(conf)
 
                             # dump
-                            f = open(output, 'w')
-                            f.write(json.dumps(temp, indent=4, separators=(',', ': ')))
-                            f.write('\n')
+                            f = open('configs/' + fname, 'w')
+                            f.write(content)
                             f.close()
-
-    os.chdir('..')
