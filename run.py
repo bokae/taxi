@@ -10,8 +10,11 @@
 # Example usage:
 # >>> ./run.py simple
 
-from city_model import *
+
 import sys
+sys.path.insert(0,'/home/bokanyie/taxi') 
+
+from city_model import *
 import os
 
 if (len(sys.argv) > 1) and (os.path.exists('configs/'+sys.argv[1]+'.conf')):

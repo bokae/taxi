@@ -24,13 +24,10 @@
 #	sbatch -c 1 --mem=1000 ./run.py $conf
 #done
 
-for alg in "random_limited" "nearest" "poorest" "random_unlimited"
+for file in `ls configs/2019_04_08_*.conf`
 do
-	for file in `ls configs/*$alg*`
-	do
-		conf=`echo $file | cut -d "/" -f2 | sed 's/.conf//g'`
-		echo "Submitting "$conf"..."
-		sbatch -c 1 --mem=1000 ./run.py $conf
-		sleep 1
-	done
+	conf=`echo $file | cut -d "/" -f2 | sed 's/uni/un/g' | sed 's/.conf//g'`
+	echo "Submitting "$conf"..."
+	sbatch --exclude=jimgray88 --mem=1000 ./run.py $conf
+	sleep 1
 done
