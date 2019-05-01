@@ -127,9 +127,9 @@ class ConfigGenerator:
 
 
         if type(alg)==int:
-            conf['alg'] = self.alg_list[alg]
+            conf['matching'] = self.alg_list[alg]
         else:
-            conf["alg"] = alg
+            conf["matching"] = alg
 
         behaviour, ic, reset = self.behav_types[behav_type]
         conf.update({"behaviour": behaviour, "initial_conditions": ic})
