@@ -145,7 +145,8 @@ class ConfigGenerator:
         # pop non JSON-serializable element
         for k in ["request_origin_distributions", "request_destination_distributions"]:
             if k in conf:
-                conf[k].pop("cdf_inv", None)
+                for elem in conf[k]:
+                    elem.pop("cdf_inv", None)
 
         # request rate
         R_string = ('%.2f' % conf['R']).replace('.', '_')
