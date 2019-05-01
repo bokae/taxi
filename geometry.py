@@ -148,8 +148,8 @@ class City:
         # pre-storing inverse CDFs for arbitrary distributions
         for d in self.request_origin_distributions:
             if "x" in d:
-                r = d["x"]
-                fr_unnormed = d["y"]
+                r = np.array(d["x"])
+                fr_unnormed = np.array(d["y"])
                 norm = np.sum(2 * np.pi * r * fr_unnormed)
                 fr_latent = 2 * np.pi * r * fr_unnormed / norm
                 i = np.cumsum(fr_latent)
@@ -160,8 +160,8 @@ class City:
 
         for d in self.request_destination_distributions:
             if "x" in d:
-                r = d["x"]
-                fr_unnormed = d["y"]
+                r = np.array(d["x"])
+                fr_unnormed = np.array(d["y"])
                 norm = np.sum(2 * np.pi * r * fr_unnormed)
                 fr_latent = 2 * np.pi * r * fr_unnormed / norm
                 i = np.cumsum(fr_latent)
