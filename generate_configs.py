@@ -142,6 +142,9 @@ class ConfigGenerator:
         return conf
 
     def dump_config(self, conf):
+        # pop non JSON-serializable element
+        conf.pop("cdf_inv",None)
+
         # request rate
         R_string = ('%.2f' % conf['R']).replace('.', '_')
         d_string = '%d' % conf['d']
