@@ -157,9 +157,6 @@ class City:
                 d["cdf_inv"] = cdf_inv
                 d["interp_min"] = np.min(i)
                 d["interp_max"] = np.max(i)
-                # very bad idea!!!! TODO
-                d["strength"] = 1
-
 
         for d in self.request_destination_distributions:
             if "x" in d:
@@ -172,8 +169,6 @@ class City:
                 d["cdf_inv"] = cdf_inv
                 d["interp_min"] = np.min(i)
                 d["interp_max"] = np.max(i)
-                # very bad idea!!!! TODO
-                d["strength"] = 1
 
     def create_one_request_coord(self):
         # binning the generated random numbers from request_p for origin distributions
