@@ -164,30 +164,59 @@ class ConfigGenerator:
 
 if __name__ == '__main__':
 
-    g = ConfigGenerator(sys.argv[1])
- 
-    # ====================================================
-    # generate configs corresponding to parameter matrix
-    # ====================================================
+    mode = sys.argv[1]
 
-    for geom in sorted(g.geom_dict.keys()):
+    if mode == "sweep":
 
-        for behav_type in range(len(g.behav_types)):
-            # sweeping through a range of R and d systematically
-            d_list = list(np.linspace(50, 400, 11))
-            for d in d_list:
+        "Generating configs for all possible config combinations for exploration purposes."
 
-                # different ratios
-                R_list = list(np.linspace(0.05, 1, 20))
-                for R in R_list:
+        g = ConfigGenerator(sys.argv[2])
 
-                        # inserting different algorithms
-                        for alg in g.alg_list:
+        # ====================================================
+        # generate configs corresponding to parameter matrix
+        # ====================================================
 
-                            conf = g.generate_config(d, R, alg, geom, behav_type)
-                            fname,content = g.dump_config(conf)
+        # different Gaussian geoms
+        for geom in range(7):
+            for behav_type in range(len(g.behav_types)):
+                # sweeping through a range of R and d systematically
+                d_list = list(np.linspace(50, 400, 11))
+                for d in d_list:
+                    # different ratios
+                    R_list = list(np.linspace(0.05, 1, 20))
+                    for R in R_list:
+                            # inserting different algorithms
+                            for alg in g.alg_list:
 
-                            # dump
-                            f = open('configs/' + fname, 'w')
-                            f.write(content)
-                            f.close()
+                                conf = g.generate_config(d, R, alg, geom, behav_type)
+                                fname,content = g.dump_config(conf)
+
+                                # dump
+                                f = open('configs/' + fname, 'w')
+                                f.write(content)
+                                f.close()
+
+    elif mode == "long_run":
+        gen = ConfigGenerator('2019_02_14_base.conf',days=100)
+        conf = gen.generate_config(225, 0.5, 'nearest', 0, 1)
+        fname, content = gen.dump_config(conf)
+        fname = fname.split('.')[0] + '_long_run.conf'
+        # dump
+        f = open('configs/' + fname, 'w')
+        f.write(content)
+        f.close()
+
+    elif mode == "new_geoms":
+        gen = ConfigGenerator('2019_02_14_base.conf')
+        geoms = [0,7,8,9]
+        for g in geoms:
+            conf = gen.generate_config(225, 0.5, 'nearest', g, 1)
+            fname, content = gen.dump_config(conf)
+            fname = fname.split('.')[0] + '_new_geoms.conf'
+            # dump
+            f = open('configs/' + fname, 'w')
+            f.write(content)
+            f.close()
+
+    elif mode == "multiple_runs":
+        return
