@@ -150,7 +150,7 @@ class ConfigGenerator:
         fname = self.base.split('.')[0] + \
              '_d_' + d_string + \
              '_R_' + R_string + \
-             '_alg_' + conf['alg'] + \
+             '_alg_' + conf['matching'] + \
              '_geom_' + str(conf['geom']) + \
              '_behav_' + conf['behaviour'] + \
              '_ic_' + conf['initial_conditions'] + \
