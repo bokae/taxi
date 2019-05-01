@@ -143,7 +143,9 @@ class ConfigGenerator:
 
     def dump_config(self, conf):
         # pop non JSON-serializable element
-        conf.pop("cdf_inv",None)
+        for k in ["request_origin_distributions", "request_destination_distributions"]:
+            if k in conf:
+                conf[k].pop("cdf_inv", None)
 
         # request rate
         R_string = ('%.2f' % conf['R']).replace('.', '_')
