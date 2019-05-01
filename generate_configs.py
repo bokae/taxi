@@ -219,4 +219,4 @@ if __name__ == '__main__':
             f.close()
 
     elif mode == "multiple_runs":
-        return
+        print()
