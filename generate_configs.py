@@ -223,6 +223,7 @@ if __name__ == '__main__':
         gen = ConfigGenerator('2019_02_14_base.conf')
         geoms = [0,7,8,9]
         for g in geoms:
+            print(g)
             conf = gen.generate_config(225, 0.5, 'nearest', g, 1)
             fname, content = gen.dump_config(conf)
             fname = fname.split('.')[0] + '_new_geoms.conf'
