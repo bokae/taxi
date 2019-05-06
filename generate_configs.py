@@ -141,32 +141,36 @@ class ConfigGenerator:
 
         return conf
 
-    def dump_config(self, conf, run=None):
+    def dump_config(self, config_dict, run=None):
+        if config_dict is None:
+            print("Request rate too low.")
+            return
+
         # pop non JSON-serializable element
         for k in ["request_origin_distributions", "request_destination_distributions"]:
-            if k in conf:
-                for elem in conf[k]:
+            if k in config_dict:
+                for elem in config_dict[k]:
                     elem.pop("cdf_inv", None)
 
         # request rate
-        R_string = ('%.2f' % conf['R']).replace('.', '_')
-        d_string = '%d' % conf['d']
+        R_string = ('%.2f' % config_dict['R']).replace('.', '_')
+        d_string = '%d' % config_dict['d']
 
         # filename
         fname = self.base.split('.')[0] + \
              '_d_' + d_string + \
              '_R_' + R_string + \
-             '_alg_' + conf['matching'] + \
-             '_geom_' + str(conf['geom']) + \
-             '_behav_' + conf['behaviour'] + \
-             '_ic_' + conf['initial_conditions'] + \
-             '_reset_' + conf['reset']
+             '_alg_' + config_dict['matching'] + \
+             '_geom_' + str(config_dict['geom']) + \
+             '_behav_' + config_dict['behaviour'] + \
+             '_ic_' + config_dict['initial_conditions'] + \
+             '_reset_' + config_dict['reset']
         if run is not None:
             fname += '_run_' + str(run) + '.conf'
         else:
             fname += '.conf'
 
-        content = json.dumps(conf, indent=4, separators=(',', ': ')) + '\n'
+        content = json.dumps(config_dict, indent=4, separators=(',', ': ')) + '\n'
 
         return fname, content
 
@@ -198,7 +202,7 @@ if __name__ == '__main__':
                             for alg in g.alg_list:
 
                                 conf = g.generate_config(d, R, alg, geom, behav_type)
-                                fname,content = g.dump_config(conf)
+                                fname, content = g.dump_config(conf)
 
                                 # dump
                                 f = open('configs/' + fname, 'w')
@@ -244,11 +248,12 @@ if __name__ == '__main__':
             for d in d_list:
                 for R in R_list:
                     conf = gen.generate_config(d, R, 'nearest', 0, 1)
-                    fname, content = gen.dump_config(conf, run=r)
-                    f = open('configs/' + fname, 'w')
-                    f.write(content)
-                    f.close()
-                    print("Successfully wrote " + fname + '!')
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
 
             # Figure 2
 
@@ -258,11 +263,12 @@ if __name__ == '__main__':
             for d in d_list:
                 for R in R_list:
                     conf = gen.generate_config(d, R, 'nearest', 0, 1)
-                    fname, content = gen.dump_config(conf, run=r)
-                    f = open('configs/' + fname, 'w')
-                    f.write(content)
-                    f.close()
-                    print("Successfully wrote " + fname + '!')
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
 
             # Figure 4
 
@@ -273,11 +279,12 @@ if __name__ == '__main__':
             for R in R_list:
                 for g in geom_list:
                     conf = gen.generate_config(d, R, 'nearest', g, 1)
-                    fname, content = gen.dump_config(conf, run=r)
-                    f = open('configs/' + fname, 'w')
-                    f.write(content)
-                    f.close()
-                    print("Successfully wrote " + fname + '!')
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
 
             # Figure 5
 
@@ -285,8 +292,9 @@ if __name__ == '__main__':
             for g in geom_list:
                 for behav in [0,1]:
                     conf = gen.generate_config(d, R, 'nearest', g, behav)
-                    fname, content = gen.dump_config(conf, run=r)
-                    f = open('configs/' + fname, 'w')
-                    f.write(content)
-                    f.close()
-                    print("Successfully wrote " + fname + '!')
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
