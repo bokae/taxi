@@ -141,7 +141,7 @@ class ConfigGenerator:
 
         return conf
 
-    def dump_config(self, conf):
+    def dump_config(self, conf, run=None):
         # pop non JSON-serializable element
         for k in ["request_origin_distributions", "request_destination_distributions"]:
             if k in conf:
@@ -160,8 +160,11 @@ class ConfigGenerator:
              '_geom_' + str(conf['geom']) + \
              '_behav_' + conf['behaviour'] + \
              '_ic_' + conf['initial_conditions'] + \
-             '_reset_' + conf['reset'] + \
-             '.conf'
+             '_reset_' + conf['reset']
+        if run is not None:
+            fname += '_run_' + str(run) + '.conf'
+        else:
+            fname += '.conf'
 
         content = json.dumps(conf, indent=4, separators=(',', ': ')) + '\n'
 
@@ -226,4 +229,65 @@ if __name__ == '__main__':
             f.close()
 
     elif mode == "multiple_runs":
-        print()
+        gen = ConfigGenerator('2019_05_06_base.conf')
+
+        # simplest geom
+        # behaviour = ic: base, behav: stay, reset: false
+        # run 10 times to take average
+
+        for r in range(10):
+
+            # Figure 1
+
+            taxi_density = np.array([5, 15, 25])
+            d_list = np.sqrt(1e6 / taxi_density)
+            R_list = np.linspace(0.06, 0.6, 10)
+            for d in d_list:
+                for R in R_list:
+                    conf = gen.generate_config(d, R, 'nearest', 0, 1)
+                    fname, content = gen.dump_config(conf, run=r)
+                    f = open('configs/' + fname, 'w')
+                    f.write(content)
+                    f.close()
+                    print("Successfully wrote " + fname + '!')
+
+            # Figure 2
+
+            taxi_density = np.linspace(3, 30, 10)  # rho = N/A [1/km^2]
+            d_list = np.sqrt(1e6/taxi_density)
+            R_list = [0.2, 0.4, 0.6]
+            for d in d_list:
+                for R in R_list:
+                    conf = gen.generate_config(d, R, 'nearest', 0, 1)
+                    fname, content = gen.dump_config(conf, run=r)
+                    f = open('configs/' + fname, 'w')
+                    f.write(content)
+                    f.close()
+                    print("Successfully wrote " + fname + '!')
+
+            # Figure 4
+
+            taxi_density = 15
+            d = np.sqrt(1e6/taxi_density)
+            R_list = np.linspace(0.06, 0.6, 10)
+            geom_list = [0, 1, 2, 3, 6]
+            for R in R_list:
+                for g in geom_list:
+                    conf = gen.generate_config(d, R, 'nearest', g, 1)
+                    fname, content = gen.dump_config(conf, run=r)
+                    f = open('configs/' + fname, 'w')
+                    f.write(content)
+                    f.close()
+                    print("Successfully wrote " + fname + '!')
+
+            # Figure 5
+
+            R = 0.4
+            for g in geom_list:
+                for behav in [0,1]:
+                    conf = gen.generate_config(d, R, 'nearest', g, behav)
+                    fname, content = gen.dump_config(conf, run=r)
+                    f = open('configs/' + fname, 'w')
+                    f.write(content)
+                    f.close()
+                    print("Successfully wrote " + fname + '!')
