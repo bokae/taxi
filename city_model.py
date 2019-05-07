@@ -1135,7 +1135,16 @@ class Simulation:
 
         # generate requests
         new_requests = set()
-        for i in range(self.request_rate):
+        rint, rfrac = np.modf(self.request_rate)
+        for i in range(rint):
+            self.add_request()
+            new_requests.add(self.latest_request_id)
+        try:
+            p = self.city.request_p.pop()
+        except IndexError:
+            self.city.request_p.extend(np.random.random(self.city.length))
+            p = self.city.request_p.pop()
+        if p < rfrac:
             self.add_request()
             new_requests.add(self.latest_request_id)
 
