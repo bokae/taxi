@@ -1136,7 +1136,7 @@ class Simulation:
         # generate requests
         new_requests = set()
         rint, rfrac = np.modf(self.request_rate)
-        for i in range(rint):
+        for i in range(int(rint)):
             self.add_request()
             new_requests.add(self.latest_request_id)
         if rfrac > 1e-3:
