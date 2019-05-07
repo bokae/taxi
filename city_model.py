@@ -1022,13 +1022,13 @@ class Simulation:
                 ptm['taxi_homes'] = [[int(self.taxis[t].home[0]), int(self.taxis[t].home[1])] for t in self.taxis]
 
             # dumping per taxi metrics out (per batch)
-            f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
+            f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'w')
             json.dump(ptm, f)
             f.write('\n')
             f.close()
 
             # dumping per request metrics out (per batch)
-            f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
+            f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'w')
             json.dump(prm, f)
             f.write('\n')
             f.close()
@@ -1040,7 +1040,7 @@ class Simulation:
             time1 = time2
 
         # dumping batch results
-        f = open(data_path + '/run_' + run_id + '_aggregates.csv', 'a')
+        f = open(data_path + '/run_' + run_id + '_aggregates.csv', 'w')
         print(results)
         pd.DataFrame.from_dict(results).to_csv(f, float_format="%.4f")
         f.write('\n')
