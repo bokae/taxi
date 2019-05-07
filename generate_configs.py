@@ -70,6 +70,8 @@ class ConfigGenerator:
             ("stay", "home", "false"),
             ("stay", "home", "true")]
 
+        self.len_dict = {}
+
     @staticmethod
     def avg_length(conf):
         """
@@ -116,15 +118,17 @@ class ConfigGenerator:
         N = int(round(self.V / d ** 2))
         conf['num_taxis'] = N
 
-        conf['avg_request_lengths'] = self.avg_length(conf)
+        if conf['geom'] in self.len_dict:
+            conf['avg_request_lengths'] = self.len_dict[geom]
+        else:
+            conf['avg_request_lengths'] = self.avg_length(conf)
+            self.len_dict[conf['geom']] = conf['avg_request_lengths']
 
-        llambda = int(round(N * self.v * R / conf['avg_request_lengths'], 0))
+        llambda = N * self.v * R / conf['avg_request_lengths']
         if llambda == 0:
             return
 
         conf['request_rate'] = llambda
-
-
 
         if type(alg)==int:
             conf['matching'] = self.alg_list[alg]
