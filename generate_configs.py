@@ -237,7 +237,7 @@ if __name__ == '__main__':
             f.close()
 
     elif mode == "multiple_runs":
-        gen = ConfigGenerator('2019_05_06_base.conf')
+        gen = ConfigGenerator('2019_05_07_base.conf')
 
         # simplest geom
         # behaviour = ic: base, behav: stay, reset: false
