@@ -1139,14 +1139,15 @@ class Simulation:
         for i in range(rint):
             self.add_request()
             new_requests.add(self.latest_request_id)
-        try:
-            p = self.city.request_p.pop()
-        except IndexError:
-            self.city.request_p.extend(np.random.random(self.city.length))
-            p = self.city.request_p.pop()
-        if p < rfrac:
-            self.add_request()
-            new_requests.add(self.latest_request_id)
+        if rfrac > 1e-3:
+            try:
+                p = self.city.request_p.pop()
+            except IndexError:
+                self.city.request_p.extend(np.random.random(self.city.length))
+                p = self.city.request_p.pop()
+            if p < rfrac:
+                self.add_request()
+                new_requests.add(self.latest_request_id)
 
         # this automatically pushes out requests that have been waiting for too long
         self.requests_pending_deque_batch.append(new_requests)
