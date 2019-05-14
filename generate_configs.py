@@ -321,7 +321,6 @@ if __name__ == '__main__':
                 for r in range(10):
                     if conf is not None:
                         fname, content = gen.dump_config(conf, run=r)
-                        fname = fname.split('.')[0] + '_missing.conf'
                         f = open('configs/' + fname, 'w')
                         f.write(content)
                         f.close()
