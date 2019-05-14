@@ -237,19 +237,17 @@ if __name__ == '__main__':
             f.close()
 
     elif mode == "multiple_runs":
-        gen = ConfigGenerator('2019_05_07_base.conf')
+        gen = ConfigGenerator('2019_05_19_base.conf')
 
         # simplest geom
         # behaviour = ic: base, behav: stay, reset: false
-        # run 10 times to take average
-
-
+        # run 10/20 times to take average
 
         # Figure 1
 
         taxi_density = np.array([5, 15, 25])
         d_list = np.sqrt(1e6 / taxi_density)
-        R_list = np.linspace(0.06, 0.6, 10)
+        R_list = np.linspace(0.06, 1.02, 17)
         for d in d_list:
             for R in R_list:
                 conf = gen.generate_config(d, R, 'nearest', 0, 1)
@@ -269,7 +267,7 @@ if __name__ == '__main__':
         for d in d_list:
             for R in R_list:
                 conf = gen.generate_config(d, R, 'nearest', 0, 1)
-                for r in range(10):
+                for r in range(20):
                     if conf is not None:
                         fname, content = gen.dump_config(conf, run=r)
                         f = open('configs/' + fname, 'w')
@@ -281,7 +279,7 @@ if __name__ == '__main__':
 
         taxi_density = 15
         d = np.sqrt(1e6/taxi_density)
-        R_list = np.linspace(0.06, 0.6, 10)
+        R_list = np.linspace(0.06, 1.02, 17)
         geom_list = [0, 1, 2, 3, 6]
         for R in R_list:
             for g in geom_list:
@@ -303,6 +301,27 @@ if __name__ == '__main__':
                 for r in range(10):
                     if conf is not None:
                         fname, content = gen.dump_config(conf, run=r)
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
+
+        # Figure 6
+
+        taxi_density = 15
+        d = np.sqrt(1e6/taxi_density)
+        R = 0.4
+
+        geom_list = [0, 1, 2, 3, 6]
+        algs = ['nearest', 'random', 'poorest']
+
+        for a in algs:
+            for g in geom_list:
+                conf = gen.generate_config(d, R, a, g, 1)
+                for r in range(10):
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        fname = fname.split('.')[0] + '_missing.conf'
                         f = open('configs/' + fname, 'w')
                         f.write(content)
                         f.close()
