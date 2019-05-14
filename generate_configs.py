@@ -325,3 +325,62 @@ if __name__ == '__main__':
                         f.close()
                         print("Successfully wrote " + fname + '!')
 
+    elif mode == "missing":
+        gen = ConfigGenerator('2019_05_06_base.conf')
+
+        # Figure 1
+
+        # missing parameter range for high R
+        taxi_density = np.array([5, 15, 25])
+        d_list = np.sqrt(1e6 / taxi_density)
+        R_list = np.linspace(0.66, 1.02, 7)
+        for d in d_list:
+            for R in R_list:
+                conf = gen.generate_config(d, R, 'nearest', 0, 1)
+                for r in range(10):
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        fname = fname.split('.')[0] + '_missing.conf'
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
+
+        # Figure 2
+
+        # more runs for averaging small R better
+        taxi_density = np.linspace(3, 30, 10)  # rho = N/A [1/km^2]
+        d_list = np.sqrt(1e6/taxi_density)
+        R_list = [0.2, 0.4, 0.6]
+        for d in d_list:
+            for R in R_list:
+                conf = gen.generate_config(d, R, 'nearest', 0, 1)
+                for r in range(10,20):
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        fname = fname.split('.')[0] + '_missing.conf'
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
+
+        # Figure 6
+
+        taxi_density = 15
+        d = np.sqrt(1e6/taxi_density)
+        R = 0.4
+
+        geom_list = [0, 1, 2, 3, 6]
+        algs = ['nearest', 'random', 'poorest']
+
+        for a in algs:
+            for g in geom_list:
+                conf = gen.generate_config(d, R, a, g, 1)
+                for r in range(10):
+                    if conf is not None:
+                        fname, content = gen.dump_config(conf, run=r)
+                        fname = fname.split('.')[0] + '_missing.conf'
+                        f = open('configs/' + fname, 'w')
+                        f.write(content)
+                        f.close()
+                        print("Successfully wrote " + fname + '!')
