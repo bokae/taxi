@@ -816,7 +816,6 @@ class Simulation:
         if self.log:
             print("\tD request " + str(request_id) + ' taxi ' + str(t.taxi_id))
 
-
     def eval_taxi_income(self, taxi_id):
         """
 
@@ -835,7 +834,8 @@ class Simulation:
         t = self.taxis[taxi_id]
 
         price =\
-            self.price_fixed +\
+            len(t.requests_completed) * self.price_fixed +\
+            int(not t.available) * self.price_fixed +\
             t.time_serving*self.price_per_dist -\
             (t.time_cruising+t.time_serving+t.time_to_request)*self.cost_per_unit -\
             (t.time_serving+t.time_cruising+t.time_to_request+t.time_waiting)*self.cost_per_time
@@ -1228,7 +1228,6 @@ class Measurements:
         for taxi_id in self.simulation.taxis:
             taxi = self.simulation.taxis[taxi_id]
             req_lengths = []
-            req_prices = []
 
             for request_id in taxi.requests_completed:
                 r = self.simulation.requests[request_id]
@@ -1241,7 +1240,7 @@ class Measurements:
             else:
                 trip_avg_length.append(0)
                 trip_std_length.append(np.nan)
-            trip_num_completed.append(len(req_prices))
+            trip_num_completed.append(len(req_lengths))
             incomes.append(self.simulation.eval_taxi_income(taxi_id))
 
             s = taxi.time_serving
