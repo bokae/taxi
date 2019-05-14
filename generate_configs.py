@@ -313,7 +313,7 @@ if __name__ == '__main__':
         R = 0.4
 
         geom_list = [0, 1, 2, 3, 6]
-        algs = ['nearest', 'random', 'poorest']
+        algs = ['nearest', 'random_limited', 'poorest']
 
         for a in algs:
             for g in geom_list:
