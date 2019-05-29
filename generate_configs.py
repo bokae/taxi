@@ -10,7 +10,6 @@
 import sys
 import json
 import numpy as np
-import os
 from city_model import City
 
 
@@ -91,11 +90,11 @@ class ConfigGenerator:
         """
         Parameters
         ----------
-        d : 
-        R : 
-        alg : 
-        geom : 
-        behav_type : 
+        d : supply
+        R : demand-to-supply ratio
+        alg : algorithm name
+        geom : city layout code
+        behav_type : taxi behaviour acronym
 
         Returns
         -------

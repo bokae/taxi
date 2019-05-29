@@ -1,12 +1,11 @@
 
 import numpy as np
-from random import shuffle, gauss, random
-import json
+from random import shuffle
 
 # special data types
 from collections import deque
-from queue import Queue
 from scipy.interpolate import interp1d
+
 
 class City:
     """
@@ -28,13 +27,16 @@ class City:
             grid coordinates of the taxi base
 
         request_origin_distributions : list of dicts
-            encodes the distribution of request origins (2D Gaussians) on the grid
+            encodes the distribution of request origins on the grid
 
-            each Gaussian is given by its location, standard deviation and strength
-                {"location":[int,int], "sigma":float, "strength":float}
-
-            random samples are drawn from these Gaussians proportional to the strength
-
+            list element is dict:
+                if Gaussian:
+                    each Gaussian is given by its location mu, standard deviation sigma and strength (mixture weight f)
+                    {"location":[int,int], "sigma":float, "strength":float}
+                if arbitrary distribution with rotational symmetry:
+                    {"x":[],"y":[],"strength":float}
+                    x and y define the shape of the desired density function that we rotate around the center
+                    strength is the mixture weight f
 
         Attributes
         ----------
@@ -308,7 +310,18 @@ class City:
 
     #@profile
     def generate_coords(self, **distr_spec):
+        """
 
+        Parameters
+        ----------
+        distr_spec: dict that specifies the distribution
+
+        Returns
+        -------
+
+        list of coordinate pairs chosen from the given distribution, falling between the n*m coordinates
+
+        """
         if "sigma" in distr_spec:
             temp = map(
                 lambda t: (int(round(t[0]*distr_spec["sigma"], 0)+distr_spec["location"][0]),
@@ -333,6 +346,14 @@ class City:
         return temp
 
     def create_taxi_home_coords(self):
+        """
+
+        Returns
+        -------
+
+        Random coordinate pair from the grid.
+
+        """
         try:
             hx,hy = self.taxi_home_coordstack.pop()
         except IndexError:
@@ -406,6 +427,21 @@ class City:
             source,
             max_depth = None
     ):
+        """
+
+        Parameters
+        ----------
+        source: [int,int]
+            origin coordinates
+        max_depth: int
+            depth of tree
+
+        Returns
+        -------
+
+        dictionary storing BFS-tree of depth max depths around given source
+
+        """
 
         if max_depth == None:
             max_depth = self.hard_limit+1
