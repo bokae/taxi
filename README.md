@@ -5,9 +5,8 @@ This repository contains an agent-based simulation of a taxi-passenger city syst
 Current algorithm:
 - Taxis are moving on a square grid.
 - There is a fixed number of taxis in the system. Their velocity is 1/timestep.
-- There is one taxi base in the middle of the grid.
 - A fixed number of requests are generated at each timestep. The request origin and destination are generated both according predefined distributions.
-- Currently, three matching algorithms are implemented (*nearest*, *poorest*, *random*). 
+- Currently, three matching algorithms are implemented (*nearest*, *poorest*, *random_limited*, *random_unlimited*). 
 - If a match is made, a taxi begins to move towards the request origin, where it picks up the passenger. Then the taxi moves towards the destination, where it drops off its  passenger. After that, the taxi heads towards the base, but while it is moving back, it will be available again. The request will be marked as fulfilled.
 - After a certain waiting threshold, requests are dropped.
 
@@ -35,7 +34,7 @@ The basic parameters for each simulation are stored in the `*.conf` files of the
   "max_time": 300, # total time to run the simulation
   "batch_size": 100, # batch time after which there is a result dump
   "num_taxis": 100, # number of taxis in the system
-  "request_origin_distributions": [ # origin distribution encoded as a sum of gaussians
+  "request_origin_distributions": [ # origin distribution, might be encoded as arbitrary density function to be rotated around the center, see docstring in code
     {
       "location": [ # 2D Gaussian mean
         15,
@@ -82,33 +81,22 @@ The basic parameters for each simulation are stored in the `*.conf` files of the
 For a batch run for the same system with different parameter sets, there is always a base config file (e.g. `configs/0606_base.conf`), from which a series of config files are generated using the `generate_configs.py` file. Usage:
 
 ```
-python generate_configs.py 0711_base.conf
+python generate_configs.py 0711_base.conf generate_mode
 ```
 
 ## Batch run
 
-The file `run.py` initiates one run from a config file and writes the results of the simulation to csv and json files. Usage:
+The file `run.py` initiates one run from a config file and writes the results of the simulation to gzipped csv and json files. Usage:
 
 ```
 python run.py 0525_1_priced
 ```
 
-where `0525_1_priced.conf `is a file name from the `configs` directory, and the results will be saved with a similarly beginning filename into the `results` directory as a `csv` (for the aggregated metrics) and two `json` files (one for the per taxi and one for the per results metrics).
+where `0525_1_priced.conf `is a file name from the `configs` directory, and the results will be saved with a similarly beginning filename into the `results` directory as a `csv.gz` (for the aggregated metrics) and two `json,gz` files (one for the per taxi and one for the per results metrics).
 
 For batch running of several configurations see the manual of `./batch_run.sh`. On servers with a SLURM system, I used `./batch_slurm.sh` and `./batch_slurm_big.sh` to submit jobs to the processing queue. 
 
 *Note: the scripts have to be marked as executable. Or you can use a `bash batch_run.sh ...` syntax.*
-
-## Result visualization
-
-The results of a batch run can be visualized with the following syntax:
-
-```
-python visualize.py run_pattern
-```
-Here, `run_pattern` is a pattern that matches the beginnings of the `run_id`s of a batch generated from the same base config file. 
-
-This is going to generate figures into the `figs` folder.
 
 ## Debugging with interactive visualization
 
