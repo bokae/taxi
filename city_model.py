@@ -1254,6 +1254,10 @@ class Measurements:
                 if r.mode == 'pending':
                     request_last_waiting_times.append(self.simulation.time - r.timestamps['request'])
 
+            print("Pending")
+            print(len(self.simulation.requests_pending))
+            print(self.simulation.requests_pending_deque_batch[0])
+
             request_waiting_time_distribution = \
                 {
                     (
