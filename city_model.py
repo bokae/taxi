@@ -1255,7 +1255,7 @@ class Measurements:
             "timestamp": self.simulation.time,
             "request_completed": round(np.mean(request_completed), 4),
             "request_last_waiting_times": round(np.mean(request_last_waiting_times), 4),
-            "request_lengths": round(np.mean(request_lengths), 4)
+            "request_lengths": round(np.mean(request_lengths), 4),
             "requests_waiting_time_distr" : request_waiting_time_distribution
         }
 
