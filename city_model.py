@@ -938,7 +938,7 @@ class Simulation:
 
         print("Running simulation with run_id "+run_id+".")
         print("Batch time "+str(self.batch_size)+".")
-        print("Number of itetimens "+str(self.num_iter)+".")
+        print("Number of items "+str(self.num_iter)+".")
         print("Total time simulated "+str(self.batch_size*self.num_iter)+".")
         print("Starting...")
 
@@ -956,16 +956,23 @@ class Simulation:
             prm = measurement.read_per_request_metrics()
 
             if i == 0:
+                # clearing future output files
+                f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'w')
+                f.close()
+                f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'w')
+                f.close()
+
+                # adding taxi homes to output
                 ptm['taxi_homes'] = [[int(self.taxis[t].home[0]), int(self.taxis[t].home[1])] for t in self.taxis]
 
             # dumping per taxi metrics out (per batch)
-            f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'w')
+            f = open(data_path + '/run_' + run_id + '_per_taxi_metrics.json', 'a')
             json.dump(ptm, f)
             f.write('\n')
             f.close()
 
             # dumping per request metrics out (per batch)
-            f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'w')
+            f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
             json.dump(prm, f)
             f.write('\n')
             f.close()
@@ -978,7 +985,6 @@ class Simulation:
 
         # dumping batch results
         f = open(data_path + '/run_' + run_id + '_aggregates.csv', 'w')
-        print(results)
         pd.DataFrame.from_dict(results).to_csv(f, float_format="%.4f")
         f.write('\n')
         f.close()
