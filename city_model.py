@@ -1248,11 +1248,15 @@ class Measurements:
                 if r.mode == 'pending':
                     request_last_waiting_times.append(self.simulation.time - r.timestamps['request'])
 
+            request_waiting_time_distribution =  {(self.simulation.max_request_waiting_time-i-1):len(l) for i,l in enumerate(self.simulation.requests_pending_deque_batch)}
+
+
         return {
             "timestamp": self.simulation.time,
             "request_completed": round(np.mean(request_completed), 4),
             "request_last_waiting_times": round(np.mean(request_last_waiting_times), 4),
             "request_lengths": round(np.mean(request_lengths), 4)
+            "requests_waiting_time_distr" : request_waiting_time_distribution
         }
 
     @staticmethod
