@@ -1076,7 +1076,7 @@ class Simulation:
                 self.requests[request_id].mode = 'dropped'
 
         self.requests_pending = set(self.requests_pending_deque)
-        print(self.requests_pending_deque_batch[0])
+        print(self.requests_pending_deque_batch)
 
         # generate requests
         new_requests = set()
