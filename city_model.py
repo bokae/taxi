@@ -1256,16 +1256,11 @@ class Measurements:
                 if r.mode == 'pending':
                     request_last_waiting_times.append(self.simulation.time - r.timestamps['request'])
 
-        print("Pending")
-        print(self.simulation.requests_pending)
-        print(self.simulation.requests_pending_deque_batch[49])
-        print(self.simulation.requests_pending_deque_batch[49].intersection(self.simulation.requests_pending))
-
         request_waiting_time_distribution = \
             {
-                (
-                    self.simulation.max_request_waiting_time-i-1):
-                    len(self.simulation.requests_pending.intersection(l)) for i,l in enumerate(self.simulation.requests_pending_deque_batch)
+                (self.simulation.max_request_waiting_time-i-1):
+                    len(self.simulation.requests_pending.intersection(l))
+                    for i, l in enumerate(self.simulation.requests_pending_deque_batch)
             }
 
         return {
@@ -1273,7 +1268,7 @@ class Measurements:
             "request_completed": round(np.mean(request_completed), 4),
             "request_last_waiting_times": round(np.mean(request_last_waiting_times), 4),
             "request_lengths": round(np.mean(request_lengths), 4),
-            "requests_waiting_time_distr" : request_waiting_time_distribution
+            "requests_waiting_time_distr": request_waiting_time_distribution
         }
 
     @staticmethod
