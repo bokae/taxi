@@ -1258,6 +1258,7 @@ class Measurements:
 
         print("Pending")
         print(self.simulation.requests_pending)
+        print(self.simulation.requests_pending_deque_batch[49])
         print(self.simulation.requests_pending_deque_batch[49].intersection(self.simulation.requests_pending))
 
         request_waiting_time_distribution = \
