@@ -1258,14 +1258,13 @@ class Measurements:
 
         print("Pending")
         print(len(self.simulation.requests_pending))
-        print([(i,l) for i,l in enumerate(self.simulation.requests_pending_deque_batch) if i<2])
+        print(self.simulation.requests_pending_deque_batch[49].intersection(self.simulation.requests_pending))
 
         request_waiting_time_distribution = \
             {
                 (
                     self.simulation.max_request_waiting_time-i-1):
-                    len(self.simulation.requests_pending.intersection(l)) for i,l in enumerate(self.simulation.requests_pending_deque_batch
-                )
+                    len(self.simulation.requests_pending.intersection(l)) for i,l in enumerate(self.simulation.requests_pending_deque_batch)
             }
 
         return {
