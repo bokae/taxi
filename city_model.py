@@ -1076,7 +1076,6 @@ class Simulation:
                 self.requests[request_id].mode = 'dropped'
 
         self.requests_pending = set(self.requests_pending_deque)
-        print(self.requests_pending_deque_batch)
 
         # generate requests
         new_requests = set()
@@ -1259,7 +1258,7 @@ class Measurements:
 
         print("Pending")
         print(len(self.simulation.requests_pending))
-        print(self.simulation.requests_pending_deque_batch[0])
+        print([(i,l) for i,l in enumerate(self.simulation.requests_pending_deque_batch) if i<2])
 
         request_waiting_time_distribution = \
             {
