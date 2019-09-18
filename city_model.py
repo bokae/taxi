@@ -1075,6 +1075,8 @@ class Simulation:
                 request_id = self.requests_pending_deque.popleft()
                 self.requests[request_id].mode = 'dropped'
 
+        self.requests_pending = set(self.requests_pending_deque)
+
         # generate requests
         new_requests = set()
         rfrac, rint = np.modf(self.request_rate)
