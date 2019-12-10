@@ -919,7 +919,7 @@ class Simulation:
 
         self.taxis[taxi_id] = t
 
-    def run_batch(self, run_id):
+    def run_batch(self, run_id, data_path='results'):
         """
         Create a batch run, where metrics are evaluated at every batch step and at the end.
         
@@ -928,7 +928,12 @@ class Simulation:
         
         run_id : str
             id that stands for simulation
+
+        data_path : str
+            where to save the results
         """
+
+        # TODO check if data_path exists, if not, throw an error
 
         measurement = Measurements(self)
 
@@ -942,8 +947,6 @@ class Simulation:
         print("Total time simulated "+str(self.batch_size*self.num_iter)+".")
         print("Starting...")
 
-        data_path = 'results'
-
         results = []
 
         time1 = time()
@@ -953,7 +956,6 @@ class Simulation:
                 self.step_time("")
 
             ptm = measurement.read_per_taxi_metrics()
-            prm = measurement.read_per_request_metrics()
 
             if i == 0:
                 # clearing future output files
@@ -970,14 +972,7 @@ class Simulation:
             json.dump(ptm, f)
             f.write('\n')
             f.close()
-
-            # dumping per request metrics out (per batch)
-            f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
-            json.dump(prm, f)
-            f.write('\n')
-            f.close()
-
-            results.append(measurement.read_aggregated_metrics(ptm, prm))
+            results.append(measurement.read_aggregated_metrics(ptm))
             time2 = time()
             print('Simulation batch '+str(i+1)+'/'+str(self.num_iter)+' , %.2f sec/batch.' % (time2-time1))
 
@@ -986,6 +981,13 @@ class Simulation:
         # dumping batch results
         f = open(data_path + '/run_' + run_id + '_aggregates.csv', 'w')
         pd.DataFrame.from_dict(results).to_csv(f, float_format="%.4f")
+        f.write('\n')
+        f.close()
+
+        # dumping per request metrics out (only at the end)
+        f = open(data_path + '/run_' + run_id + '_per_request_metrics.json', 'a')
+        prm = measurement.read_per_request_metrics()
+        json.dump(prm, f)
         f.write('\n')
         f.close()
 
@@ -1208,9 +1210,7 @@ class Measurements:
 
     def read_per_request_metrics(self):
         """
-        Returns aggregated metrics for requests.
-
-        Outputs a dictionary that stores these metrics in lists and the timestamp of the call.
+        Returns request dict.
 
         Output
         -------
@@ -1218,61 +1218,30 @@ class Measurements:
         timestamp: int
             the timestamp of the measurement
 
-        request_completed:
-            fraction of finished requests from the overall pool
-
-        request_last_waiting_times:
-            average waiting times for latest requests from the pool
-
-        request_lengths:
-            average lengths of completed requests
 
         """
 
         # for the requests
 
-        request_completed = []
-        total = 0
-        request_last_waiting_times = []
-        request_lengths = []
-        dropped_coords = []
+        output_dict = {
+            "timestamp": self.simulation.time,
+            "requests": []
+        }
 
         for request_id in self.simulation.requests:
             r = self.simulation.requests[request_id]
-            if r.mode == 'done':
-                request_completed.append(1)
-                request_lengths.append(float(np.abs(r.dy - r.oy) + np.abs(r.dx - r.ox)))
-            elif r.mode == 'dropped':
-                request_completed.append(0)
-                dropped_coords.append([r.ox, r.oy])
-            else:
-                request_completed.append(0)
+            output_dict["requests"].append({
+                "request_id": r.request_id,
+                "timestamp": r.timestamps["request"],
+                "assignment": r.timestamps["assigned"],
+                "pickup": r.timestamps["pickup"],
+                "dropoff": r.timestamps["dropoff"]
+            })
 
-            total += 1
-            # to forget history
-            # system-level waiting time peak detection
-            # it would not be sensible to include all previous waiting times
-            if (self.simulation.time - r.timestamps['request']) < 100:
-                if r.mode == 'pending':
-                    request_last_waiting_times.append(self.simulation.time - r.timestamps['request'])
-
-        request_waiting_time_distribution = \
-            {
-                (self.simulation.max_request_waiting_time-i-1):
-                    len(self.simulation.requests_pending.intersection(l))
-                    for i, l in enumerate(self.simulation.requests_pending_deque_batch)
-            }
-
-        return {
-            "timestamp": self.simulation.time,
-            "request_completed": round(np.mean(request_completed), 4),
-            "request_last_waiting_times": round(np.mean(request_last_waiting_times), 4),
-            "request_lengths": round(np.mean(request_lengths), 4),
-            "requests_waiting_time_distr": request_waiting_time_distribution
-        }
+        return output_dict
 
     @staticmethod
-    def read_aggregated_metrics(per_taxi_metrics, per_request_metrics):
+    def read_aggregated_metrics(per_taxi_metrics):
 
         metrics = {"timestamp": per_taxi_metrics["timestamp"]}
 
