@@ -566,7 +566,7 @@ class Simulation:
         # remove request from the pending ones, label it as "in progress"
         self.requests_in_progress.add(request_id)
         r.mode = 'waiting'
-        r.timestamps['assign'] = self.time
+        r.timestamps['assigned'] = self.time
 
         # update taxi state in taxi storage
         self.taxis[taxi_id] = t
