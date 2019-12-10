@@ -12,16 +12,17 @@
 
 
 import sys
-sys.path.insert(0,'/home/bokanyie/taxi') 
+sys.path.insert(0,'/home/bokanyie/projects/taxi') 
 
 from city_model import *
 import os
 
-if (len(sys.argv) > 1) and (os.path.exists('configs/'+sys.argv[1]+'.conf')):
-    run_id = sys.argv[1]
-    config = json.load(open('configs/'+run_id+'.conf'))
+if (len(sys.argv) > 1) and (os.path.exists('configs/'+sys.argv[1])):
+    p = "/".join(sys.argv[1].split("/")[:-1])
+    run_id = sys.argv[1].split("/")[-1]
+    config = json.load(open('configs/'+sys.argv[1]))
     s = Simulation(**config)  # create a Simulation instance
-    s.run_batch(run_id)
+    s.run_batch(run_id, data_path="results/"+p)
 else:
     print('Please give an existing config file from the "./configs" folder!')
 
