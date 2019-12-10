@@ -26,3 +26,5 @@ if (len(sys.argv) > 1) and (os.path.exists('configs/'+sys.argv[1])):
 else:
     print('Please give an existing config file from the "./configs" folder!')
 
+#TODO modify all run scripts, because config reference has changed!
+
