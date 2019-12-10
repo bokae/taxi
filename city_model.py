@@ -1232,6 +1232,8 @@ class Measurements:
             r = self.simulation.requests[request_id]
             output_dict["requests"].append({
                 "request_id": r.request_id,
+                "origin" : (r.ox, r.oy),
+                "destination": (r.dx, r.dy),
                 "timestamp": r.timestamps["request"],
                 "assignment": r.timestamps["assigned"],
                 "pickup": r.timestamps["pickup"],
