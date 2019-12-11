@@ -413,4 +413,7 @@ if __name__ == '__main__':
             for g in geom_list:
                 conf = gen.generate_config(d, R, 'nearest', g, 1)
                 fname, content = gen.dump_config(conf)
-                print(fname,"\n",content)
+                f = open('configs/' + fname, 'w')
+                f.write(content)
+                f.close()
+                print("Successfully wrote " + fname + '!')
