@@ -401,3 +401,16 @@ if __name__ == '__main__':
                         f.write(content)
                         f.close()
                         print("Successfully wrote " + fname + '!')
+
+    elif mode == "passenger_fairness":
+        gen = ConfigGenerator('passenger_fairness/test.conf', 1)
+        taxi_density = 15
+        d = np.sqrt(1e6/taxi_density)
+        R_list = [0.2, 0.5, 1]
+        geom_list = [0, 1, 2, 3, 6]
+
+        for R in R_list:
+            for g in geom_list:
+                conf = gen.generate_config(d, R, 'nearest', g, 1)
+                fname, content = gen.dump_config(conf)
+                print(fname,"\n",content)
