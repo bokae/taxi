@@ -221,7 +221,7 @@ class Request:
         ]
         if self.taxi_id is not None:
             s += ["\tTaxi assigned ", str(self.taxi_id), ".\n"]
-            s += ["\tWaiting since ", str(self.timestamp['request']), ".\n"]
+            s += ["\tWaiting since ", str(self.timestamps['request']), ".\n"]
             if self.mode != 'pending':
                 s += ["\tPickup timestamp ", str(self.timestamps['pickup']), ".\n"]
                 if self.timestamps['dropoff'] is not None:
