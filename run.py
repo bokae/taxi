@@ -11,15 +11,13 @@
 # >>> ./run.py simple
 
 
-import sys
-sys.path.insert(0,'/home/bokanyie/projects/taxi') 
-
 from city_model import *
 import os
+import sys
 
 if (len(sys.argv) > 1) and (os.path.exists(sys.argv[1])):
     p = "/".join(sys.argv[1].split("/")[1:][:-1])
-    run_id = sys.argv[1].split("/")[-1]
+    run_id = sys.argv[1].split("/")[-1].split(".")[0]
     config = json.load(open(sys.argv[1]))
     s = Simulation(**config)  # create a Simulation instance
     s.run_batch(run_id, data_path="results/"+p)

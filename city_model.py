@@ -227,7 +227,7 @@ class Request:
                 if self.timestamps['dropoff'] is not None:
                     s += ["\tDropoff timestamp ", str(self.timestamps['dropoff']), ".\n"]
         else:
-            s += ["\tPending since ", str(self.time - self.timestamps['request']), ".\n"]
+            s += ["\tPending since ", str(self.timestamps['request']), ".\n"]
 
         return "".join(s)
 
@@ -375,7 +375,7 @@ class Simulation:
         self.taxis_to_request = set()
         self.taxis_to_destination = set()
 
-        self.requests = RandomDict()
+        self.requests = dict()
         self.requests_pending = set()
 
         # speeding up going through requests in the order of waiting times
@@ -476,10 +476,13 @@ class Simulation:
 
         # add to request storage
         self.requests[self.latest_request_id] = r
+
         # add to free users
         self.requests_pending_deque.append(self.latest_request_id)
         # increase counter
         self.latest_request_id += 1
+
+
 
     def go_to_base(self, taxi_id, bcoords):
         """
@@ -593,11 +596,11 @@ class Simulation:
 
         if len(self.requests_pending_deque) == 0:
             if self.log:
-                print("No pending requests.")
+                print("\tNo pending requests.")
             return
 
         if self.log:
-            print('Matching algorithm.')
+            print('\tMatching algorithm.')
 
         if mode == "random_unlimited":
 
@@ -706,6 +709,7 @@ class Simulation:
         t.to_request = False
         t.with_passenger = True
         t.available = False
+        t.actual_request_executing = request_id
 
         r.timestamps['pickup'] = self.time
         r.mode = 'serving'
@@ -933,7 +937,11 @@ class Simulation:
             where to save the results
         """
 
-        # TODO check if data_path exists, if not, throw an error
+        if 'results' not in os.listdir():
+            os.mkdir('results')
+
+        if data_path not in os.listdir('results'):
+            os.mkdir(data_path)
 
         measurement = Measurements(self)
 
@@ -1015,7 +1023,7 @@ class Simulation:
             print("\t To request: " + str(len(self.taxis_to_request)))
             print("\t To destination: " + str(len(self.taxis_to_destination)))
             print("\n")
-            req_counter = {'TOTAL':self.latest_request_id}
+            req_counter = {'TOTAL': self.latest_request_id}
             for request_id in self.requests:
                 r = self.requests[request_id]
                 if r.mode in req_counter:
@@ -1027,10 +1035,13 @@ class Simulation:
                 print('\t'+mode+': '+str(req_counter[mode]))
             print("\n")
             print("Requests pending: ")
-            print(self.requests_pending)
-            print(self.requests_pending_deque)
-            print(self.requests_pending_deque_temporary)
-
+            print('\t',self.requests_pending)
+            print('\t',self.requests_pending_deque)
+            print('\t',self.requests_pending_deque_temporary)
+            print("Requests in progress: ")
+            print('\t', self.requests_in_progress)
+            print("All requests: ")
+            print('\t',[(k,str(v)) for k,v in self.requests.items()])
         if (self.time > 0) and (self.time % self.reset_time == 0):
             # print("Going home!")
             self.go_home_everybody()
@@ -1084,6 +1095,7 @@ class Simulation:
         rfrac, rint = np.modf(self.request_rate)
         for i in range(int(rint)):
             self.add_request()
+
             new_requests.add(self.latest_request_id)
         if rfrac > 1e-3:
             try:
